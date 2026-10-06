@@ -1,276 +1,114 @@
 window.FG = window.FG || {};
 
-(function (FG) {
+// The eleven rows of traffic and river. Each row holds two objects that share one TIA size code, so
+// what the player sees as "three cars" or "a log and a half" is just copies of those two sprites.
+window.FG.World = (function (C) {
   'use strict';
 
-  var C = FG.Config;
-  var W = C.W;
-  var FROG_W = C.FROG_W;
-
-  function mod(n, m) {
-    return ((n % m) + m) % m;
+  // Positions are bytes from 1 to 160; this is the cartridge's add-and-wrap.
+  function wrapAdd(value, amount) {
+    const sum = (value + amount) & 0xFF;
+    return sum >= 161 ? sum - 160 : sum;
   }
 
-  function turtleSegments() {
-    return [
-      { offset: 0, w: 10, part: 'turtle' },
-      { offset: 10, w: 4, part: 'gap' },
-      { offset: 14, w: 10, part: 'turtle' },
-      { offset: 24, w: 4, part: 'gap' },
-      { offset: 28, w: 10, part: 'turtle' },
-    ];
+  // Level 11 plays with the tables of level 1, and so on; the level number itself keeps counting.
+  function table(level) {
+    let index = level & 0xFF;
+    while (index >= 11) index -= 10;
+    return index - 1;
   }
 
-  function alligatorParts(speed) {
-    if (speed >= 0) {
-      return [
-        { offset: 0, w: 16, part: 'tail' },
-        { offset: 16, w: 16, part: 'back' },
-        { offset: 32, w: 10, part: 'jaws' },
-      ];
+  function mask(level, row) {
+    return C.MASKS[table(level)][row];
+  }
+
+  function shape(level, row) {
+    return C.SHAPES[C.LAYOUTS[table(level)][row]];
+  }
+
+  function createRows() {
+    return C.ROWS.map(function (row) {
+      return { a: row.start[0], b: row.start[1] };
+    });
+  }
+
+  function moves(level, row, counter) {
+    return (mask(level, row) & counter) === 0;
+  }
+
+  // Both objects of a row step one pixel together on the frames its speed mask allows. The kernel
+  // only learns a row's new place (`drawn`) when the row moves.
+  function advance(rows, drawn, level, counter) {
+    for (let r = rows.length - 1; r >= 0; r--) {
+      if (!moves(level, r, counter)) continue;
+      const left = C.ROWS[r].left;
+      const row = rows[r];
+      row.a = left ? (row.a - 1 || 160) : (row.a === 160 ? 1 : row.a + 1);
+      row.b = left ? (row.b - 1 || 160) : (row.b === 160 ? 1 : row.b + 1);
+      drawn[r].a = row.a;
+      drawn[r].b = row.b;
     }
-    return [
-      { offset: 0, w: 10, part: 'jaws' },
-      { offset: 10, w: 16, part: 'back' },
-      { offset: 26, w: 16, part: 'tail' },
-    ];
   }
 
-  function turtlePhase(obj) {
-    if (!obj || obj.kind !== 'turtles' || !obj.dives) return 'red';
-    var t = obj.clock % C.DIVE_CYCLE;
-    if (t >= C.DIVE_UNDER && t < C.DIVE_RISE) return 'under';
-    if (t >= C.DIVE_WARN) return 'blue';
-    return 'red';
-  }
-
-  function submerged(obj) {
-    return turtlePhase(obj) === 'under';
-  }
-
-  function scale(level) {
-    return 1 + (level - 1) * 0.25;
-  }
-
-  function makeLane(row, kind) {
-    return { row: row, kind: kind, objects: [] };
-  }
-
-  function create(level) {
-    var lanes = [];
-    var row;
-    for (row = 0; row < 12; row++) {
-      var kind = 'sidewalk';
-      if (row >= 1 && row <= 5) kind = 'road';
-      else if (row === 6) kind = 'bank';
-      else if (row >= 7) kind = 'river';
-      lanes.push(makeLane(row, kind));
+  // A frog reaching a bay puts two neighbouring road lanes back where they started. The picture keeps
+  // the old place until those lanes move again.
+  function snapRoad(rows, first) {
+    for (let r = first; r <= first + 1; r++) {
+      rows[r].a = C.ROWS[r].start[0];
+      rows[r].b = C.ROWS[r].start[1];
     }
+  }
 
-    var roadSpeed = [28, -20, 36, -24, 16];
-    var roadCount = level <= 1 ? 2 : 3;
-    var factor = scale(level);
-    for (var r = 0; r < 5; r++) {
-      var lane = lanes[r + 1];
-      var truck = r % 2 === 1;
-      var width = truck ? 26 : 14;
-      var gap = W / roadCount;
-      for (var i = 0; i < roadCount; i++) {
-        lane.objects.push({
-          kind: truck ? 'truck' : 'car',
-          x: mod(12 + r * 20 + i * gap, W),
-          w: width,
-          speed: roadSpeed[r] * factor,
-          color: (r + i) % 5,
-        });
+  // Does the 8 px frog at x touch an object copy that starts at `left` and is `width` wide? This
+  // follows the cartridge's comparisons, wrap-around branches and its extra pixel on the right side,
+  // which is what lets the frog sit in the gaps of a turtle group.
+  function touches(x, left, width) {
+    if (x < left) {
+      if (x + 7 >= left) return true;
+      const end = left + width;
+      return end >= 161 && end - 160 >= x;
+    }
+    if (left + width >= x) return true;
+    return left < 8 && left + 152 < x;
+  }
+
+  // Which of the row's two objects the frog is standing on or touching: 'a', 'b' or null.
+  function contact(rows, level, row, x) {
+    const s = shape(level, row);
+    const objects = ['a', 'b'];
+    for (let i = 0; i < 2; i++) {
+      let left = rows[row][objects[i]];
+      for (let copy = 0; copy < s.copies; copy++) {
+        if (touches(x, left, s.width)) return objects[i];
+        left = wrapAdd(left + s.width, s.gap);
       }
     }
+    return null;
+  }
 
-    if (level >= 2) {
-      lanes[6].objects.push({
-        kind: 'snake',
-        x: 20,
-        w: 30,
-        speed: 22 * factor,
-        mouth: 8,
-      });
+  // Screen columns covered by every copy of one object, for drawing.
+  function copies(level, row, position) {
+    const s = shape(level, row);
+    const list = [];
+    let left = position;
+    for (let copy = 0; copy < s.copies; copy++) {
+      list.push(left);
+      left = wrapAdd(left + s.width, s.gap);
     }
-
-    var riverSpeed = [-22, 18, -32, 26, -14];
-    var riverKind = ['log', 'turtles', 'log', 'turtles', 'log'];
-    var riverCount = level <= 1 ? 3 : 2;
-    var lady = null;
-    for (var c = 0; c < 5; c++) {
-      var current = lanes[c + 7];
-      var base = riverSpeed[c] * factor;
-      var spacing = W / riverCount;
-      for (var n = 0; n < riverCount; n++) {
-        var mixed = level >= 2 && n % 2 === 1 ? 1.5 : 1;
-        var speed = base * mixed;
-        var x = mod(8 + c * 26 + n * spacing, W);
-        if (riverKind[c] === 'turtles') {
-          current.objects.push({
-            kind: 'turtles',
-            x: x,
-            w: 38,
-            speed: speed,
-            dives: n === 0,
-            clock: (c * 1.3 + n) % C.DIVE_CYCLE,
-            segments: turtleSegments(),
-          });
-        } else if (c === 2 && n === 0) {
-          current.objects.push({
-            kind: 'alligator',
-            x: x,
-            w: 42,
-            speed: speed,
-          });
-        } else {
-          var log = { kind: 'log', x: x, w: 36, speed: speed, snake: null };
-          if (level >= 3 && c === 4 && n === 0) {
-            log.snake = { offset: 6, w: 22, mouth: 8 };
-          }
-          current.objects.push(log);
-          if (!lady && c === 0 && n === 0) {
-            lady = { row: current.row, index: 0, offset: 14, caught: false };
-          }
-        }
-      }
-    }
-
-    return { level: level, lanes: lanes, lady: lady };
+    return { width: s.width, scale: s.width / 8, origins: list };
   }
 
-  function boxOverlap(frogX, objX, objW) {
-    if (objW <= 0) return false;
-    var f0 = frogX;
-    var f1 = frogX + FROG_W;
-    var shifts = [0, W, -W];
-    for (var s = 0; s < shifts.length; s++) {
-      var a = objX + shifts[s];
-      var b = a + objW;
-      if (f0 < b && a < f1) return true;
-    }
-    return false;
-  }
-
-  function centerOffset(frogX, objX, objW) {
-    if (objW <= 0) return null;
-    var rel = mod((frogX + FROG_W / 2) - objX, W);
-    return rel < objW ? rel : null;
-  }
-
-  function snakeMouth(obj) {
-    var mouth = obj.mouth || 8;
-    if (obj.speed >= 0) return { offset: obj.w - mouth, w: mouth };
-    return { offset: 0, w: mouth };
-  }
-
-  function logMouth(obj) {
-    var mouth = obj.snake.mouth;
-    var offset = obj.speed >= 0 ? obj.snake.offset + obj.snake.w - mouth : obj.snake.offset;
-    return { offset: offset, w: mouth };
-  }
-
-  function overlapsRelative(frogX, objX, offset, width) {
-    return boxOverlap(frogX, objX + offset, width);
-  }
-
-  function probe(world, row, frogX) {
-    var lane = world.lanes[row];
-    if (!lane || lane.kind === 'sidewalk') return { safe: true, speed: 0, reason: '' };
-    var i;
-    if (lane.kind === 'road') {
-      for (i = 0; i < lane.objects.length; i++) {
-        var vehicle = lane.objects[i];
-        if (boxOverlap(frogX, vehicle.x, vehicle.w)) return { safe: false, speed: 0, reason: 'veiculo' };
-      }
-      return { safe: true, speed: 0, reason: '' };
-    }
-    if (lane.kind === 'bank') {
-      for (i = 0; i < lane.objects.length; i++) {
-        var snake = lane.objects[i];
-        if (snake.kind !== 'snake') continue;
-        var mouth = snakeMouth(snake);
-        if (overlapsRelative(frogX, snake.x, mouth.offset, mouth.w)) return { safe: false, speed: 0, reason: 'cobra' };
-      }
-      return { safe: true, speed: 0, reason: '' };
-    }
-    for (i = 0; i < lane.objects.length; i++) {
-      var obj = lane.objects[i];
-      if (obj.kind === 'alligator') {
-        var parts = alligatorParts(obj.speed);
-        var p;
-        for (p = 0; p < parts.length; p++) {
-          if (parts[p].part === 'jaws' && overlapsRelative(frogX, obj.x, parts[p].offset, parts[p].w)) {
-            return { safe: false, speed: 0, reason: 'mandibula' };
-          }
-        }
-        var onGator = centerOffset(frogX, obj.x, obj.w);
-        if (onGator != null) {
-          var part = 'back';
-          for (p = 0; p < parts.length; p++) {
-            if (onGator >= parts[p].offset && onGator < parts[p].offset + parts[p].w) part = parts[p].part;
-          }
-          if (part === 'jaws') return { safe: false, speed: 0, reason: 'mandibula' };
-          return { safe: true, speed: obj.speed, reason: '', obj: obj, part: part };
-        }
-      } else if (obj.kind === 'turtles') {
-        var onTurtles = centerOffset(frogX, obj.x, obj.w);
-        if (onTurtles != null) {
-          if (submerged(obj)) return { safe: false, speed: 0, reason: 'mergulho' };
-          return { safe: true, speed: obj.speed, reason: '', obj: obj, part: 'turtles' };
-        }
-      } else if (obj.kind === 'log') {
-        var onLog = centerOffset(frogX, obj.x, obj.w);
-        if (onLog != null) {
-          if (obj.snake) {
-            var bite = logMouth(obj);
-            if (overlapsRelative(frogX, obj.x, bite.offset, bite.w)) {
-              return { safe: false, speed: 0, reason: 'cobra' };
-            }
-          }
-          return { safe: true, speed: obj.speed, reason: '', obj: obj, part: 'log' };
-        }
-      }
-    }
-    return { safe: false, speed: 0, reason: 'agua' };
-  }
-
-  function move(world, dt) {
-    if (!dt) return;
-    for (var row = 0; row < world.lanes.length; row++) {
-      var objects = world.lanes[row].objects;
-      for (var i = 0; i < objects.length; i++) {
-        var obj = objects[i];
-        obj.x = mod(obj.x + obj.speed * dt, W);
-        if (obj.dives) obj.clock += dt;
-      }
-    }
-  }
-
-  function ladyX(world) {
-    var lady = world.lady;
-    if (!lady || lady.caught) return null;
-    var log = world.lanes[lady.row].objects[lady.index];
-    if (!log) return null;
-    return mod(log.x + lady.offset, W);
-  }
-
-  FG.World = {
-    create: create,
-    move: move,
-    probe: probe,
-    submerged: submerged,
-    turtlePhase: turtlePhase,
-    alligatorParts: alligatorParts,
-    snakeMouth: snakeMouth,
-    logMouth: logMouth,
-    turtleSegments: turtleSegments,
-    ladyX: ladyX,
-    mod: mod,
-    boxOverlap: boxOverlap,
-    centerOffset: centerOffset,
-    scale: scale,
+  return {
+    wrapAdd: wrapAdd,
+    table: table,
+    mask: mask,
+    shape: shape,
+    moves: moves,
+    createRows: createRows,
+    advance: advance,
+    snapRoad: snapRoad,
+    touches: touches,
+    contact: contact,
+    copies: copies,
   };
-})(window.FG);
+})(window.FG.Config);
