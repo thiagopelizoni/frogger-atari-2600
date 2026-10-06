@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#10160f">
-  <meta name="description" content="Recriação de Frogger do Atari 2600 para jogar no navegador, com teclado, controle ou toque.">
+  <meta name="theme-color" content="#0f150d">
+  <meta name="description" content="Recriação de Frogger, da Parker Brothers para o Atari 2600, para jogar no navegador com teclado, controle ou toque.">
   <title>Frogger · Atari 2600</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="marquee">
-    <p class="eyebrow">PARKER BROTHERS · 1982 · ATARI 2600</p>
+    <p class="eyebrow">PARKER BROTHERS · 1982 · ED ENGLISH</p>
     <h1>FROGGER</h1>
     <p class="subtitle">Cinco pistas, um rio e cinco tocas. Leve o sapo para casa.</p>
     <div class="stripes" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
@@ -20,15 +20,16 @@
     <div class="stage">
       <section class="tv" aria-label="Frogger no televisor">
         <div class="crt">
-          <canvas id="screen" width="160" height="192" tabindex="0" aria-label="Tela de Frogger. As setas pulam, Enter começa e R reinicia."></canvas>
+          <canvas id="screen" width="160" height="192" tabindex="0" aria-label="Tela de Frogger. As setas fazem o sapo pular, Enter aperta GAME RESET e P pausa."></canvas>
         </div>
         <div class="deck">
           <div class="console-brand"><span class="brand">VIDEO COMPUTER SYSTEM</span><span class="model">2600</span></div>
           <div class="switches" aria-label="Chaves do console">
             <button id="color-switch" class="switch" data-action="color" data-switch="tv" aria-pressed="false" aria-label="Alternar TV colorida e preto e branco" title="Cor / preto e branco (C)"><span class="lever" aria-hidden="true"></span><span class="label">COR · P&amp;B</span></button>
-            <button id="difficulty-switch" class="switch" data-action="difficulty" data-switch="difficulty" aria-pressed="false" aria-label="Dificuldade B ou A" title="Dificuldade B / A (L)"><span class="lever" aria-hidden="true"></span><span class="label">B · A</span></button>
-            <button id="select-button" class="switch momentary" data-action="select" data-switch="select" aria-label="Selecionar o jogo" title="Selecionar jogo (1 a 6)"><span class="lever" aria-hidden="true"></span><span class="label">GAME SELECT</span></button>
-            <button id="reset-button" class="switch momentary" data-action="reset" data-switch="reset" aria-label="Reiniciar a partida" title="Reiniciar (R)"><span class="lever" aria-hidden="true"></span><span class="label">GAME RESET</span></button>
+            <button id="left-switch" class="switch" data-action="difficultyLeft" data-switch="left" aria-pressed="false" aria-label="Dificuldade do jogador 1, B ou A" title="Dificuldade esquerda, jogador 1 (L)"><span class="lever" aria-hidden="true"></span><span class="label">ESQ. B · A</span></button>
+            <button id="right-switch" class="switch" data-action="difficultyRight" data-switch="right" aria-pressed="false" aria-label="Dificuldade do jogador 2, B ou A" title="Dificuldade direita, jogador 2 (Ç)"><span class="lever" aria-hidden="true"></span><span class="label">DIR. B · A</span></button>
+            <button id="select-button" class="switch momentary" data-action="select" data-switch="select" aria-label="GAME SELECT: escolher o jogo" title="Escolher o jogo (1 a 6)"><span class="lever" aria-hidden="true"></span><span class="label">GAME SELECT</span></button>
+            <button id="reset-button" class="switch momentary" data-action="reset" data-switch="reset" aria-label="GAME RESET: começar a partida" title="Começar de novo (R)"><span class="lever" aria-hidden="true"></span><span class="label">GAME RESET</span></button>
           </div>
           <span class="led" aria-label="Console ligado"></span>
         </div>
@@ -36,50 +37,52 @@
 
       <div id="pad" aria-label="Joystick de toque">
         <div class="dpad" aria-label="Direção">
-          <button class="up" data-dir="up" aria-label="Pular para cima">▲</button>
+          <button class="up" data-dir="up" aria-label="Pular para a frente">▲</button>
           <button class="left" data-dir="left" aria-label="Pular para a esquerda">◀</button>
           <span class="dpad-center" aria-hidden="true"></span>
           <button class="right" data-dir="right" aria-label="Pular para a direita">▶</button>
-          <button class="down" data-dir="down" aria-label="Pular para baixo">▼</button>
+          <button class="down" data-dir="down" aria-label="Pular para trás">▼</button>
         </div>
-        <div class="fire-control"><button id="fire-button" class="fire" data-control="fire" aria-label="Botão vermelho">FOGO</button><span>BOTÃO VERMELHO</span></div>
+        <div class="fire-control"><button id="fire-button" class="fire" data-control="fire" aria-label="Botão vermelho">BOTÃO</button><span>BOTÃO VERMELHO</span></div>
       </div>
     </div>
 
     <div class="game-toolbar" aria-label="Controles da partida">
-      <button id="start-button" class="action-button primary" data-action="start"><span id="start-label">COMEÇAR</span> <span>ENTER</span></button>
-      <button id="pause-button" class="action-button" data-action="pause">PAUSA <span>P</span></button>
-      <button id="mute-button" class="action-button" data-action="mute" aria-pressed="false">SOM <span>M</span></button>
-      <button id="fullscreen-button" class="action-button" data-action="fullscreen">TELA CHEIA <span>F</span></button>
+      <button id="start-button" class="action-button primary" data-action="start"><span id="start-label">COMEÇAR</span> <span id="start-key">ENTER</span></button>
+      <button id="pause-button" class="action-button" data-action="pause" aria-pressed="false"><span id="pause-label">PAUSA</span> <span>P</span></button>
+      <button id="mute-button" class="action-button" data-action="mute" aria-pressed="false" aria-label="Alternar som"><span class="sound-icon" aria-hidden="true">♪</span> SOM <span>M</span></button>
+      <button id="fullscreen-button" class="action-button" data-action="fullscreen" aria-label="Alternar tela cheia">TELA CHEIA <span>F</span></button>
     </div>
-    <p id="status" class="game-status" role="status" aria-live="polite">Aperte Enter ou o botão vermelho para começar.</p>
+    <p id="status" class="game-status" role="status" aria-live="polite">Aperte Enter ou GAME RESET para começar.</p>
 
     <section class="manual" aria-labelledby="manual-title">
       <div class="manual-heading"><h2 id="manual-title">Manual do sapo</h2><span class="manual-edition">ATARI 2600</span></div>
       <div class="manual-grid">
         <div>
-          <h3>Joystick</h3>
+          <h3>Joystick e console</h3>
           <ul>
-            <li><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> ou <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> pulam um passo. Nos jogos 1 a 4 é preciso soltar e apertar de novo. Nos jogos 5 e 6, Speedy Frogger, segurar repete o pulo.</li>
-            <li><kbd>ENTER</kbd> ou o botão vermelho começam. No fim, o mesmo botão repete a variação. <kbd>R</kbd> e GAME RESET recomeçam a qualquer momento.</li>
-            <li><kbd>1</kbd> a <kbd>6</kbd> ou GAME SELECT escolhem a variação. <kbd>L</kbd> alterna a dificuldade B/A. <kbd>P</kbd> pausa, <kbd>M</kbd> o som, <kbd>C</kbd> a cor e <kbd>F</kbd> a tela cheia.</li>
-            <li>O sapo não pula para fora da tela. Na dificuldade A, ser carregado para fora mata. Na B, ele reaparece do outro lado.</li>
+            <li><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> ou <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> dão um pulo. Nos jogos 1 a 4, solte e empurre de novo para cada pulo; nos jogos 5 e 6, o Speedy Frogger, segurar repete o pulo.</li>
+            <li><kbd>ENTER</kbd> aperta GAME RESET e começa a partida; durante o jogo, pausa. <kbd>R</kbd> é sempre GAME RESET.</li>
+            <li>GAME SELECT ou <kbd>1</kbd> a <kbd>6</kbd> escolhem o jogo. Os ímpares são para um jogador e os pares para dois, que se revezam.</li>
+            <li><kbd>L</kbd> e <kbd>Ç</kbd> mudam as dificuldades esquerda (jogador 1) e direita (jogador 2). Em A, o sapo levado para fora da tela se perde; em B, ele reaparece do outro lado.</li>
+            <li><kbd>ESPAÇO</kbd>, <kbd>Z</kbd> ou <kbd>X</kbd> são o botão vermelho: no fim de jogo, ele joga de novo o mesmo jogo; na seleção, a página também o usa como GAME RESET. <kbd>P</kbd> pausa · <kbd>M</kbd> som · <kbd>C</kbd> cor · <kbd>F</kbd> tela cheia.</li>
           </ul>
         </div>
         <div>
           <h3>A travessia</h3>
           <ul>
-            <li>Cinco sapos. A calçada e a margem amarela são seguras. Encostar em carro ou caminhão mata. A água mata; tronco, tartaruga na superfície, o vão entre tartarugas do mesmo grupo e o dorso ou a cauda do jacaré carregam o sapo.</li>
-            <li>A boca do jacaré mata. Tartaruga que mergulha mata. A cobra deixa o corpo seguro e a boca fatal. Cada viagem tem 30 segundos; nos últimos 5 a faixa fica vermelha.</li>
-            <li>Uma toca vazia e alinhada salva o sapo. Arbusto mata. Toca ocupada não deixa entrar. Cabeça de jacaré na toca não é salvamento. A mosca e a rã da tora dão bônus.</li>
-            <li>Pontos do manual: <b>1</b> para a frente, <b>5</b> ao chegar, <b>100</b> com cinco tocas, <b>20</b> pela rã, <b>20</b> pela mosca e <b>2</b> por segundo restante. Cada 1000 pontos dá um sapo extra só com menos de quatro restantes.</li>
+            <li>São cinco sapos. Cada um tem cerca de 32 segundos, contados pela faixa preta no canto de baixo, que fica vermelha no fim.</li>
+            <li>Carro e caminhão matam. No rio, só troncos, tartarugas e o dorso do jacaré seguram o sapo; o vão entre tartarugas do mesmo grupo também. Tartaruga azul está para mergulhar.</li>
+            <li>Entre na toca alinhado com a abertura: o arbusto mata e a toca ocupada não deixa entrar. A mosca vale <b>20</b>; a cabeça do jacaré mata quando já saiu da água.</li>
+            <li>Encoste na rã-dama do tronco para levá-la junto: vale <b>20</b> ao chegar. As cobras matam pela cabeça.</li>
+            <li>Pontos: <b>1</b> por fileira nova alcançada, <b>5</b> por sapo em casa mais <b>2</b> por unidade de tempo restante, e <b>99</b> ao encher as cinco tocas. Com menos de quatro sapos de reserva, cada milhar dá mais um.</li>
           </ul>
         </div>
       </div>
-      <div class="console-state" aria-label="Configuração do console"><span id="game-state">Jogo 1 · iniciante, um jogador</span><span id="diff-state">Dificuldade B · a tela dá a volta</span><span id="tv-state">TV colorida</span><span id="mute-state">Som ligado</span></div>
+      <div class="console-state" aria-label="Configuração do console"><span id="game-state">Jogo 1 · um jogador</span><span id="diff-state">Dificuldade: esquerda B · direita B</span><span id="tv-state">TV colorida</span><span id="mute-state">Som ligado</span></div>
     </section>
   </main>
-  <footer>Recriação independente de Frogger para o Atari 2600. Não afiliada à Parker Brothers, à Sega ou à Konami.</footer>
+  <footer>Recriação independente do Frogger de Ed English para o Atari 2600. Não afiliada à Parker Brothers, à Sega ou à Konami.</footer>
 
   <script src="js/config.js"></script>
   <script src="js/sprites.js"></script>
@@ -87,6 +90,8 @@
   <script src="js/audio.js"></script>
   <script src="js/input.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/screen.js"></script>
+  <script src="js/main.js"></script>
   <script>window.FG.boot();</script>
 </body>
 </html>
