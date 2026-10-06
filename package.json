@@ -5,9 +5,13 @@
   "description": "Recriação de Frogger para Atari 2600, jogável no navegador e sem dependências de execução.",
   "scripts": {
     "start": "node tools/serve.js",
-    "test": "node --test tools/test.js",
-    "test:browser": "node tools/browser-load.js",
-    "test:launch": "node tools/launch.js"
+    "build": "node tools/build-artifact.js",
+    "test": "node tools/test.js",
+    "test:play": "node tools/test-play.js",
+    "test:browser": "node tools/browser-test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
   },
   "engines": {
     "node": ">=20"

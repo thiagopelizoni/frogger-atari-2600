@@ -1,0 +1,2217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f150d">
+  <meta name="description" content="Recriação de Frogger, da Parker Brothers para o Atari 2600, para jogar no navegador com teclado, controle ou toque.">
+  <title>Frogger · Atari 2600</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --room: #0e140c;
+  --paper: #e9f2e1;
+  --paper-dim: #a9bfa3;
+  --frog: #b4e775;
+  --frog-light: #f2ffe2;
+  --bank: #e8e84a;
+  --wood: #5b3923;
+  --wood-hi: #794b2c;
+  --wood-dark: #392516;
+  --fire: #c62b20;
+}
+
+* { box-sizing: border-box; }
+html { margin: 0; background: var(--room); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 30px 20px 32px;
+  color: var(--paper);
+  font-family: "Courier New", Courier, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  background: radial-gradient(ellipse at 50% 26%, #1d2e18 0, #121a10 36%, var(--room) 72%);
+}
+button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, canvas:focus-visible { outline: 3px solid var(--frog-light); outline-offset: 4px; }
+button:disabled { opacity: .45; cursor: default; }
+button, canvas { touch-action: manipulation; }
+.marquee { max-width: 770px; margin: 0 auto 21px; text-align: center; }
+.eyebrow { margin: 0 0 6px; font-size: 10px; letter-spacing: 3px; color: var(--paper-dim); }
+.marquee h1 { margin: 0; font-weight: 900; font-size: clamp(30px, 6.5vw, 49px); line-height: 1.13; letter-spacing: 6px; color: var(--bank); text-shadow: 3px 3px 0 #355f18, 0 0 27px #e8e84a2e; }
+.subtitle { margin: 8px 0 0; font-size: 12px; letter-spacing: 1px; color: var(--paper-dim); }
+.stripes { display: flex; width: min(100%, 550px); height: 5px; margin: 17px auto 0; }
+.stripes span { flex: 1; }
+.stripes span:nth-child(1) { background: #527e2d; }
+.stripes span:nth-child(2) { background: #2d57b0; }
+.stripes span:nth-child(3) { background: #e8e84a; }
+.stripes span:nth-child(4) { background: #904811; }
+.stripes span:nth-child(5) { background: #c3903d; }
+.game-room { width: fit-content; max-width: 100%; margin: 0 auto; }
+.tv { width: fit-content; max-width: 100%; margin-inline: auto; padding: 22px 23px 16px; border: 1px solid #2f4426; border-radius: 24px; background: linear-gradient(145deg, #26361f, #141b11 40%, #0e130c); box-shadow: 0 22px 65px #0009, 0 0 80px #b4e77514, inset 0 1px 0 #ffffff0e; }
+.crt { position: relative; width: fit-content; overflow: hidden; border: 8px solid #090907; border-radius: 15px; background: #050607; box-shadow: 0 0 0 1px #3c5232, 0 5px 10px #000a, inset 0 0 30px #000; }
+#screen { display: block; width: min(72vw, 760px, max(340px, calc((100svh - 410px) * 4 / 3))); max-width: 100%; aspect-ratio: 4 / 3; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; cursor: crosshair; touch-action: none; }
+.crt::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 8px; background: radial-gradient(ellipse at 30% 10%, #ffffff0b 0, transparent 46%), radial-gradient(ellipse at 50% 45%, transparent 57%, #00000054 100%); }
+.deck { display: flex; align-items: center; gap: 13px; margin-top: 16px; padding: 10px 14px 9px; border-radius: 5px; background: repeating-linear-gradient(92deg, var(--wood) 0, var(--wood-hi) 7px, var(--wood) 14px, var(--wood-dark) 26px, var(--wood) 34px); box-shadow: inset 0 2px 5px #0008, inset 0 -1px 0 #ffffff12; }
+.console-brand { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; line-height: 1.2; }
+.brand { font-size: 8px; font-weight: bold; letter-spacing: 1px; text-shadow: 1px 1px #000a; white-space: nowrap; }
+.model { font-size: 15px; font-weight: bold; letter-spacing: 4px; color: #c7aa79; }
+.switches { display: flex; gap: 14px; margin-left: auto; }
+.switch { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 4px 2px; border: 0; background: transparent; color: var(--paper); }
+.switch .lever { position: relative; display: block; width: 16px; height: 24px; border-radius: 3px; background: linear-gradient(#090807, #211b15); box-shadow: inset 0 1px 3px #000, 0 1px 0 #ffffff15; }
+.switch .lever::after { content: ""; position: absolute; inset: 2px 3px auto; height: 10px; border-radius: 2px; background: linear-gradient(#e2ddcf, #888173); box-shadow: 0 1px 3px #000b; transition: transform .12s; }
+.switch[aria-pressed="true"] .lever::after, .switch.momentary:active .lever::after { transform: translateY(10px); }
+.switch .label { font-size: 7px; font-weight: bold; line-height: 1.2; letter-spacing: .3px; white-space: nowrap; text-shadow: 1px 1px #0009; }
+.led { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: #ed432b; box-shadow: 0 0 8px #ed432b, 0 0 16px #ed432b44; }
+.game-toolbar { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 19px; }
+.action-button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 38px; padding: 9px 12px; color: var(--paper-dim); border: 1px solid #3f5a36; border-radius: 4px; background: #161f13; font-size: 10px; font-weight: bold; letter-spacing: .6px; box-shadow: inset 0 1px 0 #ffffff08, 0 2px 0 #0005; }
+.action-button span { color: #93ad8c; font-size: 9px; }
+.action-button:hover { color: var(--frog-light); border-color: #9ed065; background: #1f2b1a; }
+.action-button:active { transform: translateY(1px); }
+.action-button.primary { color: var(--frog-light); background: #26401d; border-color: #6e9c42; }
+.action-button[aria-pressed="true"] { color: var(--frog-light); border-color: #b4e775; background: #2c4224; }
+.action-button[hidden] { display: none; }
+.sound-icon { font-size: 15px !important; line-height: 1; color: inherit !important; }
+.game-status { margin: 11px 0 0; min-height: 20px; color: #a9bfa3; text-align: center; font-size: 11px; }
+#pad { display: none; justify-content: space-between; align-items: center; width: min(100%, 390px); gap: 20px; margin: 16px auto 8px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.dpad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 48px); gap: 4px; }
+.dpad button, .dpad-center { border: 1px solid #344b2b; border-radius: 7px; background: linear-gradient(#23301e, #141b11); box-shadow: 0 3px 0 #050403; color: var(--frog); font-size: 16px; touch-action: none; }
+.dpad .up { grid-area: 1 / 2; }
+.dpad .left { grid-area: 2 / 1; }
+.dpad .right { grid-area: 2 / 3; }
+.dpad .down { grid-area: 3 / 2; }
+.dpad-center { grid-area: 2 / 2; background: #1b2517; box-shadow: inset 0 0 8px #0006; }
+#pad button:active, #pad button.held { transform: translateY(2px); box-shadow: 0 1px 0 #050403; background: #2e4326; }
+.fire-control { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.fire-control > span { font-size: 7px; color: #a9bfa3; letter-spacing: .4px; }
+#pad .fire { width: 100px; height: 100px; border: 4px solid #1d1610; border-radius: 50%; color: #ffe4ca; background: radial-gradient(circle at 35% 25%, #e95543, var(--fire) 60%, #84180f); box-shadow: 0 5px 0 #080504, 0 0 20px #c62b2025; font-size: 13px; font-weight: bold; letter-spacing: 1px; touch-action: none; }
+#pad .fire:active, #pad .fire.held { transform: translateY(3px); box-shadow: 0 2px 0 #080504; background: radial-gradient(circle at 35% 25%, #f07357, #cf3426 60%, #84180f); }
+/* Keep the manual from determining the intrinsic width of the television. */
+.manual { margin-top: 24px; width: 0; min-width: 100%; border: 1px solid #2f4426; border-radius: 5px; background: linear-gradient(#18221a, #121810); padding: 18px 20px 0; }
+.manual-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid #2f4426; }
+.manual h2 { margin: 0; color: var(--bank); text-transform: uppercase; font-size: 12px; font-weight: bold; letter-spacing: 2px; }
+.manual-edition { color: #82977c; font-size: 9px; letter-spacing: 1px; white-space: nowrap; }
+.manual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; padding: 15px 0 17px; }
+.manual h3 { margin: 0 0 9px; color: #dcebd2; font-size: 11px; font-weight: bold; }
+.manual ul { padding: 0; margin: 0; list-style: none; }
+.manual li { margin: 0 0 7px; color: var(--paper-dim); font-size: 11px; }
+.manual li:last-child { margin-bottom: 0; }
+.manual b { color: #f2ffe2; font-weight: bold; }
+kbd { display: inline-block; margin: 0 1px; padding: 1px 4px; border: 1px solid #44603a; border-radius: 3px; color: #f2ffe2; background: #26361f; font: inherit; font-size: 9px; line-height: 1.4; box-shadow: 0 1px 0 #0a0704; }
+.console-state { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px 16px; padding: 11px 0; border-top: 1px solid #2f4426; color: #93ad8c; font-size: 9px; }
+footer { max-width: 760px; margin: 24px auto 0; text-align: center; color: #82977c; font-size: 10px; }
+/* Fullscreen takes the stage, so the touch pad comes along with the television. The script marks it
+   with .full, which covers the standard and the webkit-prefixed API alike. */
+.stage.full { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; width: 100%; height: 100%; padding: 0; background: #080b07; }
+.stage.full .tv { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.stage.full .crt { border-width: 0; border-radius: 0; }
+.stage.full .deck { display: none; }
+.stage.full #screen { width: min(100vw, calc(100vh * 4 / 3)); }
+body.touch .stage.full { padding: 12px; }
+body.touch .stage.full #pad { margin: 0; }
+body.touch .stage.full #screen { width: min(calc(100vw - 24px), max(200px, calc((100vh - 220px) * 4 / 3))); }
+@media (pointer: coarse) { #pad { display: flex; } }
+body.touch #pad { display: flex; }
+@media (max-width: 650px) {
+  body { padding: 23px 14px 27px; }
+  .marquee { margin-bottom: 17px; }
+  .marquee h1 { letter-spacing: 4px; }
+  .eyebrow { font-size: 8px; letter-spacing: 2px; }
+  .subtitle { font-size: 10px; }
+  .tv { padding: 13px 12px 11px; border-radius: 18px; }
+  .crt { border-width: 5px; border-radius: 11px; }
+  #screen { width: calc(100vw - 66px); }
+  .deck { padding: 8px 10px; gap: 9px; margin-top: 12px; }
+  .brand { font-size: 6px; letter-spacing: .1px; }
+  .model { font-size: 12px; }
+  .switches { gap: 6px; }
+  .switch .label { font-size: 5px; letter-spacing: 0; }
+  .led { flex-basis: 5px; width: 5px; height: 5px; }
+  .action-button { padding: 9px; font-size: 9px; gap: 6px; }
+  .action-button span { font-size: 8px; }
+  .manual { padding: 16px 16px 0; margin-top: 18px; }
+  .manual-grid { grid-template-columns: 1fr; gap: 18px; }
+  .manual li { font-size: 11px; }
+  .console-state { justify-content: flex-start; }
+}
+@media (max-width: 370px) {
+  .console-brand { display: none; }
+  .switches { margin-left: 0; justify-content: space-around; flex: 1; }
+  .dpad { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
+  #pad .fire { width: 88px; height: 88px; }
+}
+/* Phones: the touch pad sits right under the television, and the screen shrinks so both fit at once. */
+@media (max-width: 650px) {
+  body.touch #pad { margin: 12px auto 4px; }
+  body.touch .game-toolbar { margin-top: 14px; }
+  body.touch #screen { width: min(calc(100vw - 66px), max(200px, calc((100svh - 440px) * 4 / 3))); }
+}
+/* Short phones: a slimmer header and console so the whole screen and the whole pad fit at once. */
+@media (max-width: 650px) and (max-height: 760px) {
+  body.touch { padding-top: 8px; }
+  body.touch .marquee { margin-bottom: 8px; }
+  body.touch .eyebrow, body.touch .subtitle, body.touch .stripes { display: none; }
+  body.touch .marquee h1 { font-size: 22px; letter-spacing: 3px; }
+  body.touch .tv { padding-top: 8px; padding-bottom: 8px; }
+  body.touch .deck { margin-top: 8px; padding: 4px 10px; }
+  body.touch .switch { min-height: 40px; gap: 4px; }
+  body.touch #pad { margin-top: 8px; }
+  body.touch #screen { width: min(calc(100vw - 66px), max(200px, calc((100svh - 310px) * 4 / 3))); }
+}
+@media (max-height: 600px) and (min-width: 651px) {
+  body { padding-top: 16px; }
+  .marquee { margin-bottom: 12px; }
+  .marquee h1 { font-size: 31px; }
+  .eyebrow { font-size: 8px; }
+  .subtitle { margin-top: 4px; font-size: 10px; }
+  .stripes { margin-top: 10px; }
+}
+/* Phones and tablets on their side: the d-pad left of the screen, the red button right of it, no header,
+   and a slim console under the screen so GAME SELECT, the TV switch and the lever stay at hand. */
+@media (orientation: landscape) and (max-height: 500px), (orientation: landscape) and (pointer: coarse) and (max-height: 820px) {
+  body.touch { padding: 8px 12px 20px; }
+  body.touch .marquee, body.touch .console-brand, body.touch .led { display: none; }
+  body.touch .deck { margin-top: 4px; padding: 2px 6px; gap: 0; }
+  body.touch .switches { flex: 1; justify-content: space-around; gap: 4px; margin-left: 0; }
+  body.touch .switch { min-height: 30px; padding: 2px 4px; gap: 3px; }
+  body.touch .switch .lever { width: 12px; height: 16px; }
+  body.touch .switch .lever::after { height: 7px; }
+  body.touch .switch[aria-pressed="true"] .lever::after, body.touch .switch.momentary:active .lever::after { transform: translateY(5px); }
+  body.touch .switch .label { font-size: 6px; letter-spacing: 0; }
+  body.touch .stage { display: grid; grid-template-columns: auto auto auto; justify-content: center; align-items: center; column-gap: 16px; }
+  body.touch #pad { display: contents; }
+  body.touch .dpad { order: -1; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
+  body.touch #pad .fire { width: 88px; height: 88px; }
+  body.touch .tv { padding: 6px; border-radius: 12px; }
+  body.touch .crt { border-width: 4px; border-radius: 8px; }
+  body.touch #screen { width: min(calc(100vw - 330px), max(160px, calc((100svh - 74px) * 4 / 3))); }
+}
+/* The same split in fullscreen on any touch device held sideways. */
+@media (orientation: landscape) {
+  body.touch .stage.full { display: grid; grid-template-columns: auto auto auto; justify-content: center; align-content: center; align-items: center; column-gap: 20px; }
+  body.touch .stage.full #pad { display: contents; }
+  body.touch .stage.full .dpad { order: -1; }
+  body.touch .stage.full #screen { width: min(calc(100vw - 380px), calc((100vh - 24px) * 4 / 3)); }
+}
+@media (prefers-reduced-motion: reduce) { .switch .lever::after { transition: none; } }
+
+</style>
+</head>
+<body>
+  <header class="marquee">
+    <p class="eyebrow">PARKER BROTHERS · 1982 · ED ENGLISH</p>
+    <h1>FROGGER</h1>
+    <p class="subtitle">Cinco pistas, um rio e cinco tocas. Leve o sapo para casa.</p>
+    <div class="stripes" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+  </header>
+
+  <main class="game-room">
+    <div class="stage">
+      <section class="tv" aria-label="Frogger no televisor">
+        <div class="crt">
+          <canvas id="screen" width="160" height="192" tabindex="0" aria-label="Tela de Frogger. As setas fazem o sapo pular, Enter aperta GAME RESET e P pausa."></canvas>
+        </div>
+        <div class="deck">
+          <div class="console-brand"><span class="brand">VIDEO COMPUTER SYSTEM</span><span class="model">2600</span></div>
+          <div class="switches" aria-label="Chaves do console">
+            <button id="color-switch" class="switch" data-action="color" data-switch="tv" aria-pressed="false" aria-label="Alternar TV colorida e preto e branco" title="Cor / preto e branco (C)"><span class="lever" aria-hidden="true"></span><span class="label">COR · P&amp;B</span></button>
+            <button id="left-switch" class="switch" data-action="difficultyLeft" data-switch="left" aria-pressed="false" aria-label="Dificuldade do jogador 1, B ou A" title="Dificuldade esquerda, jogador 1 (L)"><span class="lever" aria-hidden="true"></span><span class="label">ESQ. B · A</span></button>
+            <button id="right-switch" class="switch" data-action="difficultyRight" data-switch="right" aria-pressed="false" aria-label="Dificuldade do jogador 2, B ou A" title="Dificuldade direita, jogador 2 (Ç)"><span class="lever" aria-hidden="true"></span><span class="label">DIR. B · A</span></button>
+            <button id="select-button" class="switch momentary" data-action="select" data-switch="select" aria-label="GAME SELECT: escolher o jogo" title="Escolher o jogo (1 a 6)"><span class="lever" aria-hidden="true"></span><span class="label">GAME SELECT</span></button>
+            <button id="reset-button" class="switch momentary" data-action="reset" data-switch="reset" aria-label="GAME RESET: começar a partida" title="Começar de novo (R)"><span class="lever" aria-hidden="true"></span><span class="label">GAME RESET</span></button>
+          </div>
+          <span class="led" aria-label="Console ligado"></span>
+        </div>
+      </section>
+
+      <div id="pad" aria-label="Joystick de toque">
+        <div class="dpad" aria-label="Direção">
+          <button class="up" data-dir="up" aria-label="Pular para a frente">▲</button>
+          <button class="left" data-dir="left" aria-label="Pular para a esquerda">◀</button>
+          <span class="dpad-center" aria-hidden="true"></span>
+          <button class="right" data-dir="right" aria-label="Pular para a direita">▶</button>
+          <button class="down" data-dir="down" aria-label="Pular para trás">▼</button>
+        </div>
+        <div class="fire-control"><button id="fire-button" class="fire" data-control="fire" aria-label="Botão vermelho">BOTÃO</button><span>BOTÃO VERMELHO</span></div>
+      </div>
+    </div>
+
+    <div class="game-toolbar" aria-label="Controles da partida">
+      <button id="start-button" class="action-button primary" data-action="start"><span id="start-label">COMEÇAR</span> <span id="start-key">ENTER</span></button>
+      <button id="pause-button" class="action-button" data-action="pause" aria-pressed="false"><span id="pause-label">PAUSA</span> <span>P</span></button>
+      <button id="mute-button" class="action-button" data-action="mute" aria-pressed="false" aria-label="Alternar som"><span class="sound-icon" aria-hidden="true">♪</span> SOM <span>M</span></button>
+      <button id="fullscreen-button" class="action-button" data-action="fullscreen" aria-label="Alternar tela cheia">TELA CHEIA <span>F</span></button>
+    </div>
+    <p id="status" class="game-status" role="status" aria-live="polite">Aperte Enter ou GAME RESET para começar.</p>
+
+    <section class="manual" aria-labelledby="manual-title">
+      <div class="manual-heading"><h2 id="manual-title">Manual do sapo</h2><span class="manual-edition">ATARI 2600</span></div>
+      <div class="manual-grid">
+        <div>
+          <h3>Joystick e console</h3>
+          <ul>
+            <li><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> ou <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> dão um pulo. Nos jogos 1 a 4, solte e empurre de novo para cada pulo; nos jogos 5 e 6, o Speedy Frogger, segurar repete o pulo.</li>
+            <li><kbd>ENTER</kbd> aperta GAME RESET e começa a partida; durante o jogo, pausa. <kbd>R</kbd> é sempre GAME RESET.</li>
+            <li>GAME SELECT ou <kbd>1</kbd> a <kbd>6</kbd> escolhem o jogo. Os ímpares são para um jogador e os pares para dois, que se revezam.</li>
+            <li><kbd>L</kbd> e <kbd>Ç</kbd> mudam as dificuldades esquerda (jogador 1) e direita (jogador 2). Em A, o sapo levado para fora da tela se perde; em B, ele reaparece do outro lado.</li>
+            <li><kbd>ESPAÇO</kbd>, <kbd>Z</kbd> ou <kbd>X</kbd> são o botão vermelho: no fim de jogo, ele joga de novo o mesmo jogo; na seleção, a página também o usa como GAME RESET. <kbd>P</kbd> pausa · <kbd>M</kbd> som · <kbd>C</kbd> cor · <kbd>F</kbd> tela cheia.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>A travessia</h3>
+          <ul>
+            <li>São cinco sapos. Cada um tem cerca de 32 segundos, contados pela faixa preta no canto de baixo, que fica vermelha no fim.</li>
+            <li>Carro e caminhão matam. No rio, só troncos, tartarugas e o dorso do jacaré seguram o sapo; o vão entre tartarugas do mesmo grupo também. Tartaruga azul está para mergulhar.</li>
+            <li>Entre na toca alinhado com a abertura: o arbusto mata e a toca ocupada não deixa entrar. A mosca vale <b>20</b>; a cabeça do jacaré mata quando já saiu da água.</li>
+            <li>Encoste na rã-dama do tronco para levá-la junto: vale <b>20</b> ao chegar. As cobras matam pela cabeça.</li>
+            <li>Pontos: <b>1</b> por fileira nova alcançada, <b>5</b> por sapo em casa mais <b>2</b> por unidade de tempo restante, e <b>99</b> ao encher as cinco tocas. Com menos de quatro sapos de reserva, cada milhar dá mais um.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="console-state" aria-label="Configuração do console"><span id="game-state">Jogo 1 · um jogador</span><span id="diff-state">Dificuldade: esquerda B · direita B</span><span id="tv-state">TV colorida</span><span id="mute-state">Som ligado</span></div>
+    </section>
+  </main>
+  <footer>Recriação independente do Frogger de Ed English para o Atari 2600. Não afiliada à Parker Brothers, à Sega ou à Konami.</footer>
+
+  <script>
+window.FG = window.FG || {};
+
+// Tables and constants of the cartridge. Coordinates are the console's own: the picture is 160 pixels
+// wide and the canvas keeps scanlines 0 to 191 of the frame. Horizontal positions are the 1..160 bytes
+// the game keeps in RAM; an object at position p starts at screen column p - 1 (single width) or p
+// (double and quad width, which the TIA starts one clock later).
+//
+// Rows are numbered from the bottom: 0..4 are the road lanes (0 next to the sidewalk), 5 is the
+// riverbank and 6..10 the river (10 under the bays). The frog also uses -1 for the sidewalk.
+window.FG.Config = (function () {
+  'use strict';
+
+  // NTSC colours of the console, indexed by TIA colour value / 2.
+  const NTSC = [
+    '#000000', '#4A4A4A', '#6F6F6F', '#8E8E8E', '#AAAAAA', '#C0C0C0', '#D6D6D6', '#ECECEC',
+    '#484800', '#69690F', '#86861D', '#A2A22A', '#BBBB35', '#D2D240', '#E8E84A', '#FCFC54',
+    '#7C2C00', '#904811', '#A26221', '#B47A30', '#C3903D', '#D2A44A', '#DFB755', '#ECC860',
+    '#901C00', '#A33915', '#B55328', '#C66C3A', '#D5824A', '#E39759', '#F0AA67', '#FCBC74',
+    '#940000', '#A71A1A', '#B83232', '#C84848', '#D65C5C', '#E46F6F', '#F08080', '#FC9090',
+    '#840064', '#97197A', '#A8308F', '#B846A2', '#C659B3', '#D46CC3', '#E07CD2', '#EC8CE0',
+    '#500084', '#68199A', '#7D30AD', '#9246C0', '#A459D0', '#B56CE0', '#C57CEE', '#D48CFC',
+    '#140090', '#331AA3', '#4E32B5', '#6848C6', '#7F5CD5', '#956FE3', '#A980F0', '#BC90FC',
+    '#000094', '#181AA7', '#2D32B8', '#4248C8', '#545CD6', '#656FE4', '#7580F0', '#8490FC',
+    '#001C88', '#183B9D', '#2D57B0', '#4272C2', '#548AD2', '#65A0E1', '#75B5EF', '#84C8FC',
+    '#003064', '#185080', '#2D6D98', '#4288B0', '#54A0C5', '#65B7D9', '#75CCEB', '#84E0FC',
+    '#004030', '#18624E', '#2D8169', '#429E82', '#54B899', '#65D1AE', '#75E7C2', '#84FCD4',
+    '#004400', '#1A661A', '#328432', '#48A048', '#5CBA5C', '#6FD26F', '#80E880', '#90FC90',
+    '#143C00', '#355F18', '#527E2D', '#6E9C42', '#87B754', '#9ED065', '#B4E775', '#C8FC84',
+    '#303800', '#505916', '#6D762B', '#88923E', '#A0AB4F', '#B7C25F', '#CCD86E', '#E0EC7C',
+    '#482C00', '#694D14', '#866A26', '#A28638', '#BB9F47', '#D2B656', '#E8CC63', '#FCE070',
+  ];
+
+  // The kernel never names a colour directly: it reads an index through one of these two tables,
+  // picked by the TV TYPE switch.
+  const INK = {
+    black: 0, white: 1, orange: 2, yellow: 3, green: 4, log: 6, purple: 7, olive: 8, turtle: 9,
+    diving: 10, water: 11, frog: 12, pink: 13, snake: 14, gone: 11,
+  };
+  const COLOR_TABLE = [0x00, 0x0E, 0x28, 0x1C, 0xD4, 0x90, 0x12, 0x68, 0x16, 0x22, 0x96, 0x90, 0xD6, 0x58, 0xD4];
+  const GRAY_TABLE = [0x00, 0x0E, 0x0C, 0x08, 0x02, 0x03, 0x00, 0x0D, 0x0E, 0x00, 0x0A, 0x04, 0x0E, 0x0C, 0x0E];
+
+  function palette(gray) {
+    return (gray ? GRAY_TABLE : COLOR_TABLE).map(function (value) { return NTSC[value >> 1]; });
+  }
+
+  // Rows from the bottom up. `top` is the first scanline of the 7-line object band.
+  const ROWS = [
+    { name: 'road1', top: 161, left: true, start: [1, 81], ink: INK.orange, kind: 'carOrange' },
+    { name: 'road2', top: 148, left: false, start: [11, 91], ink: INK.purple, kind: 'carPurple' },
+    { name: 'road3', top: 135, left: true, start: [14, 94], ink: INK.snake, kind: 'carGreen' },
+    { name: 'road4', top: 122, left: false, start: [22, 102], ink: INK.pink, kind: 'carPink' },
+    { name: 'road5', top: 109, left: true, start: [15, 95], ink: INK.white, kind: 'truck' },
+    { name: 'bank', top: 95, left: false, start: [8, 50], ink: INK.snake, kind: 'snake' },
+    { name: 'river1', top: 83, left: true, start: [5, 70], ink: INK.turtle, kind: 'turtle' },
+    { name: 'river2', top: 70, left: false, start: [90, 98], ink: INK.log, kind: 'log' },
+    { name: 'river3', top: 57, left: false, start: [10, 42], ink: INK.log, kind: 'log' },
+    { name: 'river4', top: 44, left: true, start: [70, 10], ink: INK.turtle, kind: 'turtle' },
+    { name: 'river5', top: 31, left: false, start: [2, 82], ink: INK.log, kind: 'log' },
+  ];
+  const BANK = 5;
+  const LADY_ROW = 7;
+  const SNAKE_ROW = 8;
+  const CROC_ROW = 10;
+  const SIDEWALK = -1;
+  const SIDEWALK_TOP = 171;
+
+  // The TIA size codes the rows use: width of one copy, number of copies and the gap to the next one.
+  const SHAPES = [
+    { width: 8, copies: 1, gap: 0 },
+    { width: 8, copies: 2, gap: 8 },
+    { width: 8, copies: 2, gap: 24 },
+    { width: 8, copies: 3, gap: 8 },
+    { width: 8, copies: 2, gap: 56 },
+    { width: 16, copies: 1, gap: 0 },
+    { width: 8, copies: 3, gap: 24 },
+    { width: 32, copies: 1, gap: 0 },
+  ];
+
+  // Per level (1..10, then again from 1): a row moves one pixel on frames where
+  // (counter & mask) == 0, so 0 is 60 px/s, 1 is 30, 3 is 15 and 7 is 7.5.
+  const MASKS = [
+    [3, 7, 7, 3, 7, 1, 3, 1, 3, 1, 1],
+    [1, 3, 3, 1, 3, 0, 1, 3, 1, 3, 3],
+    [3, 1, 3, 1, 3, 0, 1, 1, 0, 3, 1],
+    [0, 1, 3, 1, 0, 3, 7, 3, 1, 1, 3],
+    [0, 3, 0, 3, 1, 1, 0, 1, 3, 1, 1],
+    [1, 0, 0, 7, 0, 7, 1, 3, 1, 3, 7],
+    [0, 1, 3, 1, 0, 3, 7, 3, 1, 1, 3],
+    [1, 3, 3, 1, 3, 0, 1, 3, 1, 3, 3],
+    [1, 0, 0, 7, 0, 7, 1, 3, 1, 3, 7],
+    [3, 0, 1, 3, 0, 3, 3, 7, 3, 1, 1],
+  ];
+  const LAYOUTS = [
+    [0, 0, 2, 0, 5, 5, 3, 6, 7, 1, 7],
+    [2, 1, 1, 1, 5, 5, 3, 6, 7, 1, 7],
+    [1, 6, 0, 3, 5, 5, 3, 2, 7, 1, 7],
+    [2, 1, 1, 1, 5, 5, 3, 6, 7, 1, 7],
+    [0, 0, 2, 0, 5, 5, 3, 6, 7, 1, 7],
+    [2, 1, 1, 1, 5, 5, 3, 6, 7, 1, 7],
+    [0, 0, 2, 0, 5, 5, 3, 6, 7, 1, 7],
+    [3, 6, 3, 6, 5, 5, 3, 4, 7, 1, 7],
+    [1, 6, 0, 3, 5, 5, 3, 2, 7, 1, 7],
+    [3, 6, 3, 6, 5, 5, 3, 4, 7, 1, 7],
+  ];
+
+  // Only the second turtle group of each turtle row dives. The phase moves every 256 frames.
+  const DIVE = {
+    6: [INK.turtle, INK.diving, INK.gone, INK.diving],
+    9: [INK.diving, INK.gone, INK.diving, INK.turtle],
+  };
+
+  const GAMES = {
+    1: { players: 1, level: 1, speedy: false, label: 'Jogo 1 · um jogador' },
+    2: { players: 2, level: 1, speedy: false, label: 'Jogo 2 · dois jogadores' },
+    3: { players: 1, level: 3, speedy: false, label: 'Jogo 3 · um jogador, mais difícil' },
+    4: { players: 2, level: 3, speedy: false, label: 'Jogo 4 · dois jogadores, mais difícil' },
+    5: { players: 1, level: 1, speedy: true, label: 'Jogo 5 · Speedy Frogger, um jogador' },
+    6: { players: 2, level: 1, speedy: true, label: 'Jogo 6 · Speedy Frogger, dois jogadores' },
+  };
+
+  // Sound. An effect is a list of [frames, AUDC, AUDF, AUDV] steps on channel 0.
+  const CHIRP = [[2, 13, 2, 14], [2, 13, 3, 8], [2, 13, 5, 2]];
+  const EFFECTS = {
+    hop: [[3, 4, 13, 9], [3, 4, 7, 8], [3, 4, 16, 6]],
+    lady: [[5, 4, 8, 12], [5, 4, 4, 12], [5, 4, 8, 12]],
+    warning: CHIRP.concat([[3, 13, 2, 14], [2, 13, 3, 8], [2, 13, 5, 2]], CHIRP, CHIRP),
+    twoPlayers: CHIRP.concat(CHIRP),
+    home: CHIRP,
+    death: [[3, 8, 16, 14], [2, 13, 5, 6], [4, 8, 30, 8]],
+  };
+  // Tune notes pack channel 0 in the high nibble and channel 1 in the low one. Each note decays from
+  // volume 14 to 0 in 15 frames.
+  const NOTES = [
+    [12, 23], [12, 20], [12, 17], [12, 15], [5, 26], [5, 23], [5, 20], [5, 19], [5, 17], [5, 15], [5, 0],
+  ];
+  const TUNES = {
+    start: [0x62, 0x42, 0x40, 0x42, 0x62, 0x42, 0x40, 0x41, 0x73, 0x73, 0x61, 0x63, 0x53, 0xA3, 0xA0, 0xA3,
+      0x73, 0x73, 0x60, 0x63, 0x53, 0x53, 0x90, 0x93, 0x83, 0x73, 0x60, 0x53, 0x42],
+    theme: [0x42, 0x50, 0x62, 0x70, 0x82, 0xA0, 0x62, 0xA0, 0x42, 0x50, 0x62, 0x50, 0x42, 0xA0, 0x42, 0xA0,
+      0x42, 0x50, 0x62, 0x70, 0x82, 0xA0, 0x62, 0xA0, 0x83, 0x70, 0x63, 0x50, 0x42],
+  };
+
+  return {
+    W: 160,
+    H: 192,
+    NTSC: NTSC,
+    INK: INK,
+    palette: palette,
+    ROWS: ROWS,
+    BANK: BANK,
+    LADY_ROW: LADY_ROW,
+    SNAKE_ROW: SNAKE_ROW,
+    CROC_ROW: CROC_ROW,
+    SIDEWALK: SIDEWALK,
+    SIDEWALK_TOP: SIDEWALK_TOP,
+    SHAPES: SHAPES,
+    MASKS: MASKS,
+    LAYOUTS: LAYOUTS,
+    DIVE: DIVE,
+    GAMES: GAMES,
+    EFFECTS: EFFECTS,
+    NOTES: NOTES,
+    TUNES: TUNES,
+    START_X: 80,
+    TIMER: 30,
+    TIMER_WARNING: 6,
+    RESERVES: 4,
+    DEATH_PAUSE: 70,
+    HOME_PAUSE: 8,
+    VISIT: 157,
+    // Bay n (0..4) takes a frog whose x is in [11 + 32n, 18 + 32n].
+    BAY_LEFT: 11,
+    BAY_PITCH: 32,
+    BAY_WIDTH: 8,
+    // Hop limits on x: a hop must land on 6 or more and below 147.
+    HOP_MIN: 6,
+    HOP_MAX: 147,
+    // With the difficulty switch on A, a frog carried to x >= 147 or x < 4 is lost.
+    EDGE_RIGHT: 147,
+    EDGE_LEFT: 4,
+  };
+})();
+
+</script>
+  <script>
+window.FG = window.FG || {};
+
+// Graphics as the cartridge stores them: eight pixels per line, top line first. Wider objects are the
+// same bytes stretched by the TIA (trucks and snakes twice, long logs and the crocodile four times).
+window.FG.Sprites = (function () {
+  'use strict';
+
+  const frogUp = ['#..#..#.', '#.###.#.', '.#####..', '..###...', '#######.', '#..#..#.', '#.....#.'];
+
+  return {
+    frog: {
+      up: frogUp,
+      down: ['#.....#.', '#..#..#.', '#######.', '..###...', '.#####..', '#.###.#.', '#..#..#.'],
+      right: ['###.###.', '..###...', '.#####..', '.######.', '.#####..', '..###...', '###.###.'],
+      left: ['.###.###', '...###..', '..#####.', '.######.', '..#####.', '...###..', '.###.###'],
+      dead: ['#......#', '.#....#.', '..#..#..', '..####..', '.######.', '.#....#.', '#......#'],
+    },
+    // The lady frog is Frogger's own picture in white.
+    lady: frogUp,
+    carOrange: ['.##...##', '........', '########', '###...##', '########', '........', '.##...##'],
+    carPurple: ['######.#', '.####..#', '########', '#..##..#', '########', '.####..#', '######.#'],
+    carGreen: ['.##..##.', '#######.', '##...###', '###..##.', '##...###', '#######.', '.##..##.'],
+    carPink: ['##...##.', '........', '########', '##...###', '########', '........', '##...##.'],
+    truck: ['.#.#####', '########', '########', '########', '########', '########', '.#.#####'],
+    turtle: ['..####..', '.######.', '########', '########', '########', '.######.', '..####..'],
+    log: ['########', '###.####', '########', '#####.##', '.#######', '##.#####', '######.#'],
+    croc: {
+      shut: ['...#.#..', '..###...', '.######.', '########', '######..', '..#.####', '..#.#...'],
+      open: ['...#.#.#', '..###.##', '.######.', '######..', '######..', '..#.###.', '..#.#.##'],
+    },
+    snake: {
+      right: [
+        ['......#.', '......##', '.....##.', '..#..#.#', '.#####..', '.#.##...', '#...#...'],
+        ['........', '......#.', '.##..###', '#.#####.', '...###.#', '....#...', '........'],
+      ],
+      left: [
+        ['.#......', '##......', '.##.....', '#.#..#..', '..#####.', '...##.#.', '...#...#'],
+        ['........', '.#......', '###..##.', '.#####.#', '#.###...', '...#....', '........'],
+      ],
+    },
+    // Bay pictures are eleven lines tall.
+    homeFrog: ['.#....#.', '#.#..#.#', '###..###', '..####..', '#.####.#', '########', '##.##.##', '.##..##.', '..####..', '##....##', '##....##'],
+    fly: ['.....#..', '....###.', '...###..', '.#.###..', '#####.#.', '####.###', '#####.#.', '.#.###..', '...###..', '....###.', '.....#..'],
+    crocHead: ['.....##.', '.#.###..', '#.###...', '####....', '###.....', '##......', '#.......', '##.#.#.#', '########', '#####...', '........'],
+    crocRising: ['.##.....', '##......', '#.......', '........', '........', '........', '........', '........', '#.#.....', '###.....', '........'],
+    digits: [
+      ['...###..', '..#...#.', '.##...##', '.##...##', '.##...##', '..#...#.', '...###..'],
+      ['.....#..', '....##..', '...###..', '....##..', '....##..', '....##..', '.#######'],
+      ['..#####.', '......##', '......##', '..#####.', '.##.....', '.##.....', '.#######'],
+      ['.######.', '......##', '......##', '..#####.', '......##', '......##', '.######.'],
+      ['......#.', '.....##.', '....###.', '...#.##.', '..#..##.', '.#######', '.....##.'],
+      ['.######.', '.##.....', '.##.....', '..#####.', '......##', '......##', '.######.'],
+      ['..#####.', '.##.....', '.##.....', '.######.', '.##...##', '.##...##', '..#####.'],
+      ['.#######', '.##....#', '......##', '.....##.', '....##..', '...##...', '..##....'],
+      ['..#####.', '.##...##', '.##...##', '..#####.', '.##...##', '.##...##', '..#####.'],
+      ['..#####.', '.##...##', '.##...##', '..######', '......##', '......##', '..#####.'],
+    ],
+  };
+})();
+
+</script>
+  <script>
+window.FG = window.FG || {};
+
+// The eleven rows of traffic and river. Each row holds two objects that share one TIA size code, so
+// what the player sees as "three cars" or "a log and a half" is just copies of those two sprites.
+window.FG.World = (function (C) {
+  'use strict';
+
+  // Positions are bytes from 1 to 160; this is the cartridge's add-and-wrap.
+  function wrapAdd(value, amount) {
+    const sum = (value + amount) & 0xFF;
+    return sum >= 161 ? sum - 160 : sum;
+  }
+
+  // Level 11 plays with the tables of level 1, and so on; the level number itself keeps counting.
+  function table(level) {
+    let index = level & 0xFF;
+    while (index >= 11) index -= 10;
+    return index - 1;
+  }
+
+  function mask(level, row) {
+    return C.MASKS[table(level)][row];
+  }
+
+  function shape(level, row) {
+    return C.SHAPES[C.LAYOUTS[table(level)][row]];
+  }
+
+  function createRows() {
+    return C.ROWS.map(function (row) {
+      return { a: row.start[0], b: row.start[1] };
+    });
+  }
+
+  function moves(level, row, counter) {
+    return (mask(level, row) & counter) === 0;
+  }
+
+  // Both objects of a row step one pixel together on the frames its speed mask allows. The kernel
+  // only learns a row's new place (`drawn`) when the row moves.
+  function advance(rows, drawn, level, counter) {
+    for (let r = rows.length - 1; r >= 0; r--) {
+      if (!moves(level, r, counter)) continue;
+      const left = C.ROWS[r].left;
+      const row = rows[r];
+      row.a = left ? (row.a - 1 || 160) : (row.a === 160 ? 1 : row.a + 1);
+      row.b = left ? (row.b - 1 || 160) : (row.b === 160 ? 1 : row.b + 1);
+      drawn[r].a = row.a;
+      drawn[r].b = row.b;
+    }
+  }
+
+  // A frog reaching a bay puts two neighbouring road lanes back where they started. The picture keeps
+  // the old place until those lanes move again.
+  function snapRoad(rows, first) {
+    for (let r = first; r <= first + 1; r++) {
+      rows[r].a = C.ROWS[r].start[0];
+      rows[r].b = C.ROWS[r].start[1];
+    }
+  }
+
+  // Does the 8 px frog at x touch an object copy that starts at `left` and is `width` wide? This
+  // follows the cartridge's comparisons, wrap-around branches and its extra pixel on the right side,
+  // which is what lets the frog sit in the gaps of a turtle group.
+  function touches(x, left, width) {
+    if (x < left) {
+      if (x + 7 >= left) return true;
+      const end = left + width;
+      return end >= 161 && end - 160 >= x;
+    }
+    if (left + width >= x) return true;
+    return left < 8 && left + 152 < x;
+  }
+
+  // Which of the row's two objects the frog is standing on or touching: 'a', 'b' or null.
+  function contact(rows, level, row, x) {
+    const s = shape(level, row);
+    const objects = ['a', 'b'];
+    for (let i = 0; i < 2; i++) {
+      let left = rows[row][objects[i]];
+      for (let copy = 0; copy < s.copies; copy++) {
+        if (touches(x, left, s.width)) return objects[i];
+        left = wrapAdd(left + s.width, s.gap);
+      }
+    }
+    return null;
+  }
+
+  // Screen columns covered by every copy of one object, for drawing.
+  function copies(level, row, position) {
+    const s = shape(level, row);
+    const list = [];
+    let left = position;
+    for (let copy = 0; copy < s.copies; copy++) {
+      list.push(left);
+      left = wrapAdd(left + s.width, s.gap);
+    }
+    return { width: s.width, scale: s.width / 8, origins: list };
+  }
+
+  return {
+    wrapAdd: wrapAdd,
+    table: table,
+    mask: mask,
+    shape: shape,
+    moves: moves,
+    createRows: createRows,
+    advance: advance,
+    snapRoad: snapRoad,
+    touches: touches,
+    contact: contact,
+    copies: copies,
+  };
+})(window.FG.Config);
+
+</script>
+  <script>
+window.FG = window.FG || {};
+
+// Two TIA sound channels. The game hands over AUDC, AUDF and AUDV for both channels once per frame,
+// exactly as the cartridge writes them, and this module turns them into samples with the same
+// polynomial counters and dividers as the chip. Nothing plays until a gesture unlocks the context.
+window.FG.Audio = (function () {
+  'use strict';
+
+  const TIA_CLOCK = 31399.5;
+
+  // Runs inside the AudioWorklet or the ScriptProcessor fallback, so it must stay self-contained.
+  function tiaCore(sampleRate) {
+    const BIT4 = [1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0];
+    const BIT5 = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1];
+    // The divide-by-31 clock is uneven: 13 ticks one way and 18 the other.
+    const DIV31 = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const BIT9 = [];
+    let lfsr = 0x1ff;
+    for (let i = 0; i < 511; i++) {
+      BIT9.push(lfsr & 1);
+      const bit = ((lfsr >> 4) ^ lfsr) & 1;
+      lfsr = (lfsr >> 1) | (bit << 8);
+    }
+    const step = 31399.5 / sampleRate;
+    const channels = [0, 1].map(function () {
+      return { audc: 0, audf: 0, audv: 0, count: 1, p4: 0, p5: 0, p9: 0, out: 0 };
+    });
+    let phase = 0;
+
+    function tick(ch) {
+      const c = ch.audc;
+      if (c === 0 || c === 11) {
+        ch.out = ch.audv;
+        return;
+      }
+      if (ch.count > 1) {
+        ch.count--;
+        return;
+      }
+      ch.count = (ch.audf + 1) * (c >= 12 ? 3 : 1);
+      ch.p5 = (ch.p5 + 1) % 31;
+      const clocked = (c & 2) === 0 || ((c & 1) === 0 ? DIV31[ch.p5] : BIT5[ch.p5]);
+      if (!clocked) return;
+      if (c & 4) {
+        ch.out = ch.out ? 0 : ch.audv;
+      } else if (c & 8) {
+        if (c === 8) {
+          ch.p9 = (ch.p9 + 1) % 511;
+          ch.out = BIT9[ch.p9] ? ch.audv : 0;
+        } else {
+          ch.out = BIT5[ch.p5] ? ch.audv : 0;
+        }
+      } else {
+        ch.p4 = (ch.p4 + 1) % 15;
+        ch.out = BIT4[ch.p4] ? ch.audv : 0;
+      }
+    }
+
+    return {
+      set: function (regs) {
+        for (let i = 0; i < 2; i++) {
+          const ch = channels[i];
+          const r = regs[i] || [0, 0, 0];
+          ch.audc = r[0] & 15;
+          ch.audf = r[1] & 31;
+          ch.audv = r[2] & 15;
+          if (ch.out) ch.out = ch.audv;
+        }
+      },
+      render: function (output) {
+        for (let n = 0; n < output.length; n++) {
+          // Average the chip ticks that fall inside one output sample, a cheap low-pass.
+          phase += step;
+          let sum = 0;
+          let ticks = 0;
+          while (phase >= 1) {
+            phase -= 1;
+            tick(channels[0]);
+            tick(channels[1]);
+            sum += channels[0].out + channels[1].out;
+            ticks++;
+          }
+          const level = ticks ? sum / ticks : channels[0].out + channels[1].out;
+          output[n] = level / 30 * 0.32;
+        }
+      },
+    };
+  }
+
+  const PROCESSOR = `${tiaCore.toString()}
+class TiaProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.core = tiaCore(sampleRate);
+    this.port.onmessage = (event) => this.core.set(event.data);
+  }
+  process(inputs, outputs) {
+    this.core.render(outputs[0][0]);
+    return true;
+  }
+}
+registerProcessor('tia-sound', TiaProcessor);`;
+
+  let ctx = null;
+  let master = null;
+  let sink = null;
+  let fallback = null;
+  let muted = false;
+  let silent = true;
+  let last = '';
+
+  function post(regs) {
+    if (sink) sink.port.postMessage(regs);
+    else if (fallback) fallback.set(regs);
+  }
+
+  function connectFallback() {
+    if (!ctx.createScriptProcessor) return;
+    fallback = tiaCore(ctx.sampleRate);
+    const node = ctx.createScriptProcessor(1024, 0, 1);
+    node.onaudioprocess = function (event) { fallback.render(event.outputBuffer.getChannelData(0)); };
+    node.connect(master);
+  }
+
+  function unlock() {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) return;
+    if (!ctx) {
+      try {
+        ctx = new Context();
+      } catch (_) {
+        return;
+      }
+      master = ctx.createGain();
+      master.gain.value = muted ? 0 : 1;
+      // A television speaker never reproduced the chip's highest squares; this keeps them from whistling.
+      const speaker = ctx.createBiquadFilter();
+      speaker.type = 'lowpass';
+      speaker.frequency.value = 9000;
+      master.connect(speaker);
+      speaker.connect(ctx.destination);
+      if (ctx.audioWorklet && window.Blob && window.URL) {
+        const url = URL.createObjectURL(new Blob([PROCESSOR], { type: 'text/javascript' }));
+        ctx.audioWorklet.addModule(url).then(function () {
+          sink = new AudioWorkletNode(ctx, 'tia-sound', { numberOfInputs: 0, outputChannelCount: [1] });
+          sink.connect(master);
+          last = '';
+        }).catch(connectFallback);
+      } else {
+        connectFallback();
+      }
+    }
+    if (ctx.state === 'suspended') ctx.resume().catch(function () {});
+  }
+
+  // Called once per emulated frame with [[audc, audf, audv], [audc, audf, audv]].
+  function frame(regs) {
+    const key = regs[0].join(',') + ';' + regs[1].join(',');
+    silent = !regs[0][2] && !regs[1][2];
+    if (key === last) return;
+    last = key;
+    post(regs);
+  }
+
+  function stop() {
+    last = '';
+    post([[0, 0, 0], [0, 0, 0]]);
+    silent = true;
+  }
+
+  function setMuted(value) {
+    muted = !!value;
+    if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, 0.01);
+  }
+
+  return {
+    TIA_CLOCK: TIA_CLOCK,
+    core: tiaCore,
+    unlock: unlock,
+    frame: frame,
+    stop: stop,
+    setMuted: setMuted,
+    get muted() { return muted; },
+    get silent() { return silent; },
+  };
+})();
+
+</script>
+  <script>
+(function () {
+  'use strict';
+
+  var FG = window.FG = window.FG || {};
+  var keys = Object.create(null);
+  var buttonKeys = Object.create(null);
+  var pointers = new Map();
+  // Presses seen since the last poll, so a tap released before the next frame still counts once.
+  var tapped = Object.create(null);
+  var callback = function () {};
+  var initialized = false;
+  var active = true;
+  var padStart = false;
+  var skipPadAction = false;
+  var state = { left: false, right: false, up: false, down: false, fire: false };
+  var keyDirections = {
+    ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+    ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
+    Space: 'fire', KeyZ: 'fire', KeyX: 'fire'
+  };
+  var actions = {
+    Enter: 'start', KeyP: 'pause', KeyR: 'reset', KeyM: 'mute',
+    KeyC: 'color', KeyL: 'difficultyLeft', Semicolon: 'difficultyRight', KeyF: 'fullscreen',
+    Digit1: 'select1', Digit2: 'select2', Digit3: 'select3', Digit4: 'select4', Digit5: 'select5', Digit6: 'select6',
+    Numpad1: 'select1', Numpad2: 'select2', Numpad3: 'select3', Numpad4: 'select4', Numpad5: 'select5', Numpad6: 'select6'
+  };
+
+  function unlockAudio() {
+    if (FG.Audio) FG.Audio.unlock();
+  }
+
+  function editable(target) {
+    return !!(target && (target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)));
+  }
+
+  function nativeButtonKey(event) {
+    return (event.code === 'Enter' || event.code === 'Space') && event.target.closest && event.target.closest('button, a, [role="button"]');
+  }
+
+  function heldClasses() {
+    document.querySelectorAll('#pad [data-dir], #pad [data-control="fire"]').forEach(function (button) {
+      var control = button.dataset.dir || 'fire';
+      var held = false;
+      pointers.forEach(function (pointer) { if (pointer.control === control) held = true; });
+      Object.keys(buttonKeys).forEach(function (code) { if (buttonKeys[code] === control) held = true; });
+      button.classList.toggle('held', held);
+    });
+  }
+
+  function releasePointer(event) {
+    if (pointers.delete(event.pointerId)) heldClasses();
+  }
+
+  function pointerControl(element, control) {
+    element.addEventListener('pointerdown', function (event) {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      event.preventDefault();
+      unlockAudio();
+      // A mouse click on the TV only gives it the keyboard; tapping it is fire on touch screens.
+      if (element.id === 'screen' && event.pointerType === 'mouse') {
+        element.focus({ preventScroll: true });
+        return;
+      }
+      if (event.pointerType !== 'mouse') document.body.classList.add('touch');
+      // While paused, the TV and the red button resume, as the card says; the press is spent on that,
+      // so it is not also fire the moment the game runs again.
+      if (control === 'fire' && FG.paused && FG.paused()) {
+        callback('pause');
+        if (element.id === 'screen') element.focus({ preventScroll: true });
+        return;
+      }
+      pointers.set(event.pointerId, { control: control, direction: control !== 'fire' });
+      tapped[control] = true;
+      try { element.setPointerCapture(event.pointerId); } catch (error) { /* A canceled pointer cannot be captured. */ }
+      if (element.id === 'screen') element.focus({ preventScroll: true });
+      heldClasses();
+    });
+    element.addEventListener('pointermove', function (event) {
+      var pointer = pointers.get(event.pointerId);
+      if (!pointer || !pointer.direction) return;
+      var hovered = document.elementFromPoint(event.clientX, event.clientY);
+      var direction = hovered && hovered.closest('#pad [data-dir]');
+      pointer.control = direction ? direction.dataset.dir : null;
+      heldClasses();
+    });
+    element.addEventListener('pointerup', releasePointer);
+    element.addEventListener('pointercancel', releasePointer);
+    element.addEventListener('lostpointercapture', releasePointer);
+    element.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+    if (element.id !== 'screen') {
+      element.addEventListener('keydown', function (event) {
+        if (event.code !== 'Space' && event.code !== 'Enter') return;
+        event.preventDefault();
+        unlockAudio();
+        buttonKeys[control + event.code] = control;
+        tapped[control] = true;
+        heldClasses();
+      });
+      element.addEventListener('keyup', function (event) { delete buttonKeys[control + event.code]; heldClasses(); });
+      element.addEventListener('blur', function () {
+        delete buttonKeys[control + 'Space'];
+        delete buttonKeys[control + 'Enter'];
+        heldClasses();
+      });
+    }
+  }
+
+  function init(onAction) {
+    callback = typeof onAction === 'function' ? onAction : callback;
+    if (initialized) return;
+    initialized = true;
+    active = !document.hidden;
+    if (navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
+    window.addEventListener('keydown', function (event) {
+      if (editable(event.target) || nativeButtonKey(event) || event.altKey || event.ctrlKey || event.metaKey) return;
+      var direction = keyDirections[event.code];
+      var action = actions[event.code];
+      if (!direction && !action) return;
+      event.preventDefault();
+      unlockAudio();
+      if (direction) {
+        keys[event.code] = true;
+        tapped[direction] = true;
+      }
+      if (action && !event.repeat && !keys[event.code]) {
+        keys[event.code] = true;
+        callback(action);
+      }
+    });
+    window.addEventListener('keyup', function (event) {
+      if (keys[event.code]) delete keys[event.code];
+    });
+    window.addEventListener('blur', function () {
+      active = false;
+      clear();
+    });
+    window.addEventListener('focus', function () { active = true; skipPadAction = true; });
+    document.addEventListener('visibilitychange', function () {
+      active = !document.hidden;
+      if (!active) clear();
+      else skipPadAction = true;
+    });
+    window.addEventListener('pointerup', releasePointer);
+    window.addEventListener('pointercancel', releasePointer);
+    window.addEventListener('gamepaddisconnected', function () { padStart = false; });
+    document.querySelectorAll('[data-action]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        unlockAudio();
+        callback(button.dataset.action);
+        // Hand the keyboard back to the game, or Enter and Space would press this button again.
+        var screen = document.getElementById('screen');
+        if (screen) screen.focus({ preventScroll: true });
+      });
+    });
+    document.querySelectorAll('#pad [data-dir]').forEach(function (button) { pointerControl(button, button.dataset.dir); });
+    document.querySelectorAll('[data-control="fire"]').forEach(function (button) { pointerControl(button, 'fire'); });
+    var canvas = document.getElementById('screen');
+    if (canvas) pointerControl(canvas, 'fire');
+  }
+
+  function poll() {
+    state.left = state.right = state.up = state.down = state.fire = false;
+    var taps = tapped;
+    tapped = Object.create(null);
+    if (!active || document.hidden) return state;
+    Object.keys(taps).forEach(function (control) { state[control] = true; });
+    Object.keys(keys).forEach(function (code) {
+      if (keyDirections[code]) state[keyDirections[code]] = true;
+    });
+    Object.keys(buttonKeys).forEach(function (code) { state[buttonKeys[code]] = true; });
+    pointers.forEach(function (pointer) { if (pointer.control) state[pointer.control] = true; });
+    var start = false;
+    var gamepads = [];
+    try { gamepads = (navigator.getGamepads && navigator.getGamepads()) || []; } catch (error) { /* Blocked by a permissions policy. */ }
+    for (var i = 0; i < gamepads.length; i++) {
+      var pad = gamepads[i];
+      if (!pad || !pad.connected) continue;
+      var pressed = function (index) { return !!(pad.buttons[index] && pad.buttons[index].pressed); };
+      var x = pad.axes[0] || 0;
+      var y = pad.axes[1] || 0;
+      state.left = state.left || x < -0.22 || pressed(14);
+      state.right = state.right || x > 0.22 || pressed(15);
+      state.up = state.up || y < -0.22 || pressed(12);
+      state.down = state.down || y > 0.22 || pressed(13);
+      state.fire = state.fire || pressed(0) || pressed(1) || pressed(2) || pressed(7);
+      start = start || pressed(9);
+    }
+    if (start && !padStart && !skipPadAction) {
+      unlockAudio();
+      callback('start');
+    }
+    if (state.fire) unlockAudio();
+    padStart = start;
+    skipPadAction = false;
+    return state;
+  }
+
+  function clear() {
+    keys = Object.create(null);
+    buttonKeys = Object.create(null);
+    tapped = Object.create(null);
+    pointers.clear();
+    state.left = state.right = state.up = state.down = state.fire = false;
+    padStart = false;
+    skipPadAction = true;
+    heldClasses();
+  }
+
+  FG.Input = { state: state, init: init, poll: poll, clear: clear };
+})();
+
+</script>
+  <script>
+window.FG = window.FG || {};
+
+// The cartridge's game logic, one 1/60 s frame at a time and in the same order as the console: the
+// vertical blank (collisions, timer, visitors, lady frog, snake, sound, console switches), the picture
+// (`onKernel`), then the overscan (joystick and traffic). Nothing here touches the DOM, so the tests
+// drive the same object the browser does.
+(function (FG) {
+  'use strict';
+
+  const C = FG.Config;
+  const W = FG.World;
+
+  // Joystick bits as the cartridge reads them from SWCHA (already inverted: 1 = pushed).
+  const UP = 0x10;
+  const DOWN = 0x20;
+  const LEFT = 0x40;
+  const RIGHT = 0x80;
+
+  // Row values that are not a row: the frog left the screen for a bay, or nobody is shown.
+  const IN_BAY = 0x49;
+  const HIDDEN = 0x40;
+  const PARKED = 0x5B;
+  const LADY_GONE = 0xFF;
+  const LADY_CARRIED = 0x7F;
+  const SNAKE_GONE = 0x80;
+
+  const FACES = { up: 'up', down: 'down', left: 'left', right: 'right', dead: 'dead' };
+
+  function odd(value) {
+    return (value & 1) === 1;
+  }
+
+  class Game {
+    constructor(options) {
+      const settings = options || {};
+      this.audio = settings.audio || null;
+      this.onKernel = settings.onKernel || null;
+      this.colorTV = true;
+      // false = B, true = A, for the left (player 1) and right (player 2) switches.
+      this.difficulty = [false, false];
+      this.held = { reset: 0, select: 0 };
+      this.powerOn();
+    }
+
+    powerOn() {
+      this.counter = 0;
+      // The first sync after power-on already sees the counter at zero.
+      this.divePhase = 1;
+      this.rows = W.createRows();
+      this.drawn = W.createRows();
+      this.state = 'select';
+      this.game = 1;
+      this.player = 0;
+      this.players = [0, 1].map(function () {
+        return { score: 0, reserves: C.RESERVES, level: 1, bays: 0 };
+      });
+      // One bay shows a face in select mode: the middle one for one-player games.
+      this.players[0].bays = 0x04;
+      this.tableLevel = 1;
+      this.clock = 0;
+      this.rounds = 30;
+      this.visitor = { bay: 0, kind: null };
+      this.frog = { x: C.START_X, row: HIDDEN, face: FACES.up, ink: C.INK.frog, best: 0, riding: false };
+      this.stick = 0;
+      this.timer = 0xFF;
+      this.pause = 0;
+      this.lady = { row: HIDDEN, x: 0, step: 0, flags: 0 };
+      this.snake = { row: HIDDEN, x: 0, flags: 0 };
+      this.selectLatch = false;
+      this.sound = { effect: null, step: 0, wait: 0xFF, tune: null, note: 0, envelope: 0xFF };
+      this.registers = [[0, 0, 0], [0, 0, 0]];
+      this.events = [];
+      this.started = false;
+      this.playTune('theme');
+    }
+
+    // ----- Console -----
+
+    // GAME RESET and GAME SELECT are read on odd frames, so a click holds them for two frames.
+    press(name) {
+      if (name === 'reset' || name === 'select') this.held[name] = 2;
+    }
+
+    toggleColor() {
+      this.colorTV = !this.colorTV;
+    }
+
+    toggleDifficulty(side) {
+      this.difficulty[side] = !this.difficulty[side];
+    }
+
+    get current() {
+      return this.players[this.player];
+    }
+
+    get setup() {
+      return C.GAMES[this.game];
+    }
+
+    get twoPlayers() {
+      return this.setup.players === 2;
+    }
+
+    get playing() {
+      return this.state === 'play';
+    }
+
+    // ----- One frame -----
+
+    frame(input) {
+      const pad = input || {};
+      this.events.length = 0;
+      this.vblank(pad);
+      if (this.onKernel) this.onKernel(this);
+      this.overscan(pad);
+      // The turtles change phase just before the next frame's sync, when the counter has wrapped.
+      if (this.counter === 0) this.divePhase = (this.divePhase + 1) & 3;
+      this.held.reset = Math.max(0, this.held.reset - 1);
+      this.held.select = Math.max(0, this.held.select - 1);
+      if (this.audio) this.audio.frame(this.registers);
+    }
+
+    vblank(pad) {
+      this.counter = (this.counter + 1) & 0xFF;
+      this.started = true;
+
+      if (this.state === 'over') {
+        if (pad.fire && (!this.twoPlayers || pad.fire2 !== false)) {
+          this.startGame();
+          return;
+        }
+        if (this.counter === 0) {
+          if (this.twoPlayers) this.player ^= 1;
+          if (this.rounds > 0) this.rounds--;
+        }
+        this.finishVblank();
+        return;
+      }
+
+      if (this.state === 'select') {
+        this.clock = (this.clock - 1) & 0xFF;
+        if (this.clock === 0) {
+          this.rounds = (this.rounds - 1) & 0xFF;
+          if (this.rounds === 0) this.gameOver();
+        }
+      } else if (this.state === 'pause') {
+        let waiting = false;
+        if (this.pause !== 0) {
+          this.pause = (this.pause - 1) & 0xFF;
+          waiting = (this.pause & 0x80) === 0;
+        }
+        if (!waiting && this.sound.envelope & 0x80) this.nextFrog();
+      } else if (this.state === 'play') {
+        this.playVblank();
+      }
+      this.moveLadyAndSnake();
+      this.finishVblank();
+    }
+
+    finishVblank() {
+      this.runSound();
+      if (odd(this.counter)) this.readSwitches();
+    }
+
+    playVblank() {
+      if (odd(this.counter)) this.collide();
+      if ((this.counter & 0x3F) === 0) {
+        this.timer = (this.timer - 1) & 0xFF;
+        if (this.timer === 0) {
+          this.die('tempo');
+          this.timer = 0xFF;
+        } else if (this.timer === C.TIMER_WARNING) {
+          this.playEffect('warning');
+        }
+      }
+      if (this.state === 'play') {
+        if (this.current.bays === 0x1F) this.finishLevel();
+        this.visit();
+      }
+      const frog = this.frog;
+      if (frog.riding && frog.row >= 0 && frog.row <= 10 && W.moves(this.tableLevel, frog.row, this.counter)) {
+        frog.x = C.ROWS[frog.row].left ? (frog.x - 1 || 160) : W.wrapAdd(frog.x, 1);
+      }
+    }
+
+    // ----- Collisions (odd frames only) -----
+
+    collide() {
+      const frog = this.frog;
+      const row = frog.row;
+      if (row < 0 || row > 10) {
+        frog.riding = false;
+        return;
+      }
+      if (row === C.BANK) {
+        // Only the bank snake's head bites: its left edge + 7 to + 14.
+        if (this.bankSnake()) {
+          const head = (this.rows[C.BANK].b + 15) & 0xFF;
+          if (frog.x < head && frog.x + 8 >= head) {
+            this.die('cobra');
+            return;
+          }
+        }
+        frog.riding = false;
+        return;
+      }
+      const hit = W.contact(this.rows, this.tableLevel, row, frog.x);
+      if (!hit) {
+        if (row >= 6) this.die('água');
+        else frog.riding = false;
+        return;
+      }
+      if (hit === 'a' && row === C.CROC_ROW && this.crocodile()) {
+        const jaws = W.wrapAdd(this.rows[C.CROC_ROW].a, 0x20);
+        if (jaws >= frog.x && W.wrapAdd(frog.x, 10) >= jaws) {
+          this.die('jacaré');
+          return;
+        }
+      }
+      if (hit === 'b' && this.turtleInk(row) === C.INK.gone) {
+        this.die('tartaruga');
+        return;
+      }
+      if (row < 6) {
+        this.die('trânsito');
+        return;
+      }
+      if (this.difficulty[this.player] && (frog.x >= C.EDGE_RIGHT || frog.x < C.EDGE_LEFT)) {
+        this.die('borda');
+        return;
+      }
+      frog.riding = true;
+    }
+
+    crocodile() {
+      return this.current.level >= 2;
+    }
+
+    bankSnake() {
+      return this.current.level >= 4;
+    }
+
+    // Colour of the second turtle group of a turtle row, which is how the cartridge knows it dived.
+    turtleInk(row) {
+      const phases = C.DIVE[row];
+      return phases ? phases[this.divePhase] : C.ROWS[row].ink;
+    }
+
+    // ----- Frog life cycle -----
+
+    die(reason) {
+      this.state = 'pause';
+      this.pause = C.DEATH_PAUSE;
+      this.frog.face = FACES.dead;
+      this.frog.riding = false;
+      this.current.reserves--;
+      this.frog.best = 0;
+      this.reason = reason;
+      this.playEffect('death');
+      this.events.push('death');
+    }
+
+    newFrog() {
+      this.tableLevel = this.current.level;
+      this.state = 'play';
+      this.frog.face = FACES.up;
+      this.timer = C.TIMER;
+      this.frog.row = C.SIDEWALK;
+      this.frog.x = C.START_X;
+      this.frog.ink = C.INK.frog;
+      if (this.lady.row !== C.LADY_ROW) {
+        this.lady.flags &= 0x3F;
+        this.lady.step = 0;
+      }
+      this.reason = null;
+    }
+
+    // What follows the pause after a death, a frog home or a finished level.
+    nextFrog() {
+      if (this.frog.face === FACES.dead) {
+        if (this.twoPlayers) {
+          this.player ^= 1;
+          this.snake.flags = 0;
+          this.snake.row = 0x1F;
+          this.visitor.bay = 0;
+          this.visitor.kind = null;
+          this.rounds = 4;
+          this.events.push('turn');
+        }
+        if (this.current.reserves < 0) {
+          if (!this.twoPlayers) {
+            this.gameOver();
+            return;
+          }
+          this.player ^= 1;
+          if (this.current.reserves < 0) {
+            this.gameOver();
+            return;
+          }
+          if (this.current.bays === 0x1F) this.current.bays = 0;
+        }
+      } else if (this.current.bays === 0x1F) {
+        this.current.bays = 0;
+      }
+      this.newFrog();
+    }
+
+    finishLevel() {
+      this.current.bays = 0x1F;
+      this.visitor.bay = 0;
+      this.visitor.kind = null;
+      this.rounds = 3;
+      this.playTune(odd(this.current.level) ? 'theme' : 'start');
+      this.state = 'pause';
+      this.addScore(99);
+      this.pause = 0xFF;
+      this.current.level = (this.current.level + 1) & 0xFF;
+      this.events.push('level');
+    }
+
+    gameOver() {
+      this.state = 'over';
+      this.rounds = 0x28;
+      this.visitor.bay = 0;
+      this.visitor.kind = null;
+      // The traffic of level 4 keeps running behind the final score.
+      this.players[0].level = 4;
+      this.players[1].level = 4;
+      this.tableLevel = 4;
+      this.playTune('theme');
+      this.hideAll();
+      this.events.push('gameover');
+    }
+
+    hideAll() {
+      this.frog.row = HIDDEN;
+      this.lady.row = HIDDEN;
+      this.snake.row = HIDDEN;
+    }
+
+    startGame() {
+      const level = this.setup.level;
+      this.players.forEach(function (player) {
+        player.level = level;
+        player.bays = 0;
+        player.reserves = C.RESERVES;
+        player.score = 0;
+      });
+      this.player = 0;
+      this.lady.flags = 0;
+      this.lady.step = 0;
+      this.visitor.bay = 0;
+      this.visitor.kind = null;
+      this.frog.row = C.SIDEWALK;
+      this.playTune('start');
+      this.tableLevel = level;
+      this.rounds = 4;
+      this.frog.x = C.START_X;
+      this.frog.ink = C.INK.frog;
+      this.timer = C.TIMER;
+      this.lady.row = PARKED;
+      this.snake.row = PARKED;
+      this.frog.face = FACES.up;
+      this.state = 'pause';
+      this.reason = null;
+      this.events.push('start');
+    }
+
+    addScore(points) {
+      const player = this.current;
+      const thousands = Math.floor(player.score / 1000);
+      player.score = (player.score + points) % 10000;
+      if (Math.floor(player.score / 1000) !== thousands && player.reserves >= 0 && player.reserves < 4) {
+        player.reserves++;
+        this.events.push('extra');
+      }
+    }
+
+    // ----- Fly and crocodile heads in the bays -----
+
+    visit() {
+      const visitor = this.visitor;
+      if (visitor.bay !== 0) {
+        this.clock = (this.clock - 1) & 0xFF;
+        if (this.clock !== 0) return;
+        if (visitor.kind === 'rising') {
+          visitor.kind = 'croc';
+          this.clock = C.VISIT;
+          return;
+        }
+        visitor.kind = null;
+        visitor.bay = 0;
+        this.clock = this.counter;
+        this.rounds = odd(this.counter) ? 4 : 3;
+        return;
+      }
+      this.clock = (this.clock - 1) & 0xFF;
+      if (this.clock !== 0) return;
+      this.rounds = (this.rounds - 1) & 0xFF;
+      if (this.rounds !== 0) return;
+      // Start at a bay picked by the frame counter and take the first empty one to its right.
+      let bay = (this.counter & 3) + 1;
+      for (let tries = 0; tries < 5 && (this.current.bays & (1 << (bay - 1))); tries++) bay = bay === 5 ? 1 : bay + 1;
+      visitor.bay = bay;
+      visitor.kind = odd(this.current.level) ? 'fly' : 'rising';
+      this.clock = C.VISIT;
+    }
+
+    // ----- Lady frog and the log snake -----
+
+    moveLadyAndSnake() {
+      const lady = this.lady;
+      const snake = this.snake;
+      const level = this.tableLevel;
+      if (lady.row === C.LADY_ROW && W.moves(level, C.LADY_ROW, this.counter)) lady.x = (lady.x + 1) & 0xFF;
+      if (snake.row === C.SNAKE_ROW && !(snake.flags & 0x40) && W.moves(level, C.SNAKE_ROW, this.counter)) {
+        snake.x = (snake.x + 2) & 0xFF;
+      }
+      this.updateLady();
+      if (this.current.level >= 5) this.updateSnake();
+    }
+
+    updateLady() {
+      const lady = this.lady;
+      const frog = this.frog;
+      if (lady.flags & 0x80) {
+        if ((this.counter & 0x3F) === 0) {
+          // She hops along her log: forward, forward, back, back. The cartridge only checks whether she
+          // left the screen after the fourth hop; after the others it falls into the boarding check.
+          lady.x = (lady.step >= 2 ? lady.x - 8 : lady.x + 8) & 0xFF;
+          lady.step = (lady.step + 1) & 3;
+          if (lady.step !== 0) {
+            this.boardLady();
+            return;
+          }
+        } else if (frog.row === C.LADY_ROW && frog.face !== FACES.dead) {
+          const near = frog.x >= lady.x ? ((frog.x - 6) & 0xFF) < lady.x : frog.x + 6 >= lady.x;
+          if (near) {
+            frog.ink = C.INK.olive;
+            lady.row = LADY_CARRIED;
+            lady.flags &= 0x7F;
+            this.playEffect('lady');
+            this.events.push('lady');
+            return;
+          }
+        }
+        if (lady.x >= 0x98) {
+          lady.row = LADY_GONE;
+          lady.flags = (lady.flags | 0x20) & 0x3F;
+        }
+        return;
+      }
+      if (!(lady.flags & 0x40)) this.boardLady();
+    }
+
+    // Every second time the log passes x = 4 she climbs on it.
+    boardLady() {
+      const lady = this.lady;
+      if (this.rows[C.LADY_ROW].a !== 4 || !W.moves(this.tableLevel, C.LADY_ROW, this.counter)) return;
+      lady.flags ^= 0x20;
+      if (lady.flags & 0x20) {
+        lady.x = 0;
+        lady.step = 0;
+        lady.row = C.LADY_ROW;
+        lady.flags = 0xC0;
+      }
+    }
+
+    updateSnake() {
+      const snake = this.snake;
+      const frog = this.frog;
+      if (snake.row !== C.SNAKE_ROW) {
+        if (this.rows[C.SNAKE_ROW].a === 1 && W.moves(this.tableLevel, C.SNAKE_ROW, this.counter)) {
+          snake.flags ^= 0x80;
+          if (snake.flags & 0x80) {
+            snake.x = 0;
+            snake.row = C.SNAKE_ROW;
+            snake.flags &= 0xBF;
+          }
+        }
+        return;
+      }
+      const facingLeft = (snake.flags & 0x40) !== 0;
+      if (frog.row === C.SNAKE_ROW && frog.face !== FACES.dead) {
+        // The mouth is the dangerous end: the right half going right, the left edge going left.
+        let bitten = false;
+        if (snake.x >= frog.x) {
+          bitten = facingLeft && ((snake.x - 8) & 0xFF) < frog.x;
+        } else if (!facingLeft) {
+          const head = (snake.x + 15) & 0xFF;
+          bitten = head >= frog.x && ((head - 8) & 0xFF) < frog.x;
+        }
+        if (bitten) this.die('cobra');
+      }
+      if (snake.x >= 0x98) {
+        snake.row = SNAKE_GONE;
+        snake.flags &= 0x80;
+      } else if (!facingLeft) {
+        const turn = (this.rows[C.SNAKE_ROW].b + 20) & 0xFF;
+        if (turn >= 0x40 && turn < snake.x) snake.flags |= 0x40;
+      } else if (((this.rows[C.SNAKE_ROW].a - 5) & 0xFF) >= snake.x) {
+        snake.flags &= 0xBF;
+      }
+    }
+
+    // ----- Console switches (odd frames) -----
+
+    readSwitches() {
+      if (this.held.reset) {
+        this.startGame();
+        return;
+      }
+      if (!this.held.select) {
+        this.selectLatch = false;
+        return;
+      }
+      this.player = 0;
+      this.players.forEach(function (player) { player.score = 0; });
+      this.hideAll();
+      this.rounds = 30;
+      if (this.selectLatch) return;
+      this.selectLatch = true;
+      this.state = 'select';
+      this.game = this.game === 6 ? 1 : this.game + 1;
+      this.players[0].bays = this.twoPlayers ? 0x0A : 0x04;
+      this.visitor.bay = 0;
+      this.visitor.kind = null;
+      this.playEffect(this.twoPlayers ? 'twoPlayers' : 'hop');
+      this.players[0].level = this.setup.level;
+      this.players[1].level = this.setup.level;
+      this.tableLevel = this.setup.level;
+      this.events.push('select');
+    }
+
+    // ----- Overscan: joystick and traffic -----
+
+    overscan(pad) {
+      if (odd(this.counter) && this.state === 'play') this.readStick(pad.stick || 0);
+      W.advance(this.rows, this.drawn, this.tableLevel, this.counter);
+    }
+
+    readStick(bits) {
+      const stick = bits & 0xF0;
+      const changed = stick !== this.stick;
+      this.stick = stick;
+      // Speedy Frogger repeats a held direction every eight frames; the other games need a new push.
+      if (!changed && ((this.counter & 6) !== 0 || !this.setup.speedy)) return;
+      const frog = this.frog;
+      if (stick === RIGHT) {
+        const x = (frog.x + 8) & 0xFF;
+        if (x >= C.HOP_MAX) return;
+        frog.x = x;
+        frog.face = FACES.right;
+      } else if (stick === LEFT) {
+        const x = (frog.x - 8) & 0xFF;
+        if (x < C.HOP_MIN) return;
+        frog.x = x;
+        frog.face = FACES.left;
+      } else if (stick === DOWN) {
+        if (frog.row < 0) return;
+        frog.row--;
+        frog.face = FACES.down;
+      } else if (stick === UP) {
+        frog.row++;
+        if (frog.row === 11) {
+          this.enterBay();
+          return;
+        }
+        if (frog.row >= frog.best) {
+          frog.best++;
+          this.addScore(1);
+        }
+        frog.face = FACES.up;
+      } else {
+        return;
+      }
+      this.playEffect('hop');
+      this.events.push('hop');
+    }
+
+    enterBay() {
+      const frog = this.frog;
+      frog.row = 10;
+      const offset = frog.x - C.BAY_LEFT;
+      const bay = offset >= 0 && offset % C.BAY_PITCH < C.BAY_WIDTH ? Math.floor(offset / C.BAY_PITCH) + 1 : 0;
+      if (bay < 1 || bay > 5) {
+        this.die('arbusto');
+        return;
+      }
+      if (bay === this.visitor.bay) {
+        const kind = this.visitor.kind;
+        this.visitor.kind = null;
+        this.visitor.bay = 0;
+        this.rounds = 2;
+        if (kind === 'croc') {
+          this.die('jacaré');
+          return;
+        }
+        if (kind === 'fly') {
+          this.addScore(20);
+          this.events.push('fly');
+        }
+      }
+      const bit = 1 << (bay - 1);
+      if (this.current.bays & bit) return;
+      this.current.bays |= bit;
+      const withLady = !(this.lady.flags & 0x80) && (this.lady.flags & 0x40) !== 0;
+      this.addScore(withLady ? 25 : 5);
+      frog.best = 0;
+      frog.row = IN_BAY;
+      W.snapRoad(this.rows, this.counter & 3);
+      if (this.current.bays !== 0x1F) {
+        this.pause = C.HOME_PAUSE;
+        this.state = 'pause';
+      }
+      this.addScore(2 * this.timer);
+      this.playEffect('home');
+      this.events.push(withLady ? 'home-lady' : 'home');
+    }
+
+    // ----- Sound driver -----
+
+    playEffect(name) {
+      this.sound.effect = C.EFFECTS[name];
+      this.sound.step = 0;
+      this.sound.wait = 0;
+    }
+
+    playTune(name) {
+      this.sound.tune = C.TUNES[name];
+      this.sound.note = 0;
+      this.sound.envelope = 0;
+    }
+
+    get tunePlaying() {
+      return (this.sound.envelope & 0x80) === 0;
+    }
+
+    runSound() {
+      const s = this.sound;
+      const regs = this.registers;
+      if (this.tunePlaying) {
+        if (s.envelope !== 0) {
+          s.envelope--;
+          regs[0][2] = regs[1][2] = s.envelope;
+          return;
+        }
+        const notes = s.note < s.tune.length ? s.tune[s.note] : 0;
+        if (notes !== 0) {
+          const low = C.NOTES[notes & 15];
+          const high = C.NOTES[notes >> 4];
+          regs[1][0] = low[0];
+          regs[1][1] = low[1];
+          regs[0][0] = high[0];
+          regs[0][1] = high[1];
+          s.note++;
+          s.envelope = 14;
+          regs[0][2] = regs[1][2] = 14;
+          return;
+        }
+        // The tune is over; an effect asked for meanwhile is dropped.
+        s.envelope = 0xFF;
+        s.wait = (s.wait - 1) & 0xFF;
+        if (s.wait & 0x80) return;
+      }
+      if (s.wait & 0x80) return;
+      if (s.wait !== 0) {
+        s.wait--;
+        return;
+      }
+      const step = s.effect && s.effect[s.step];
+      if (!step) {
+        regs[0][2] = 0;
+        s.wait = 0xFF;
+        return;
+      }
+      regs[0][0] = step[1];
+      regs[0][1] = step[2];
+      regs[0][2] = step[3];
+      s.wait = step[0] - 1;
+      s.step++;
+    }
+
+    // ----- Plain-data snapshot for the bot and the tests -----
+
+    clone() {
+      const copy = Object.create(Game.prototype);
+      const data = JSON.parse(JSON.stringify(this, function (key, value) {
+        return key === 'audio' || key === 'onKernel' ? undefined : value;
+      }));
+      Object.assign(copy, data);
+      copy.audio = null;
+      copy.onKernel = null;
+      copy.sound.effect = this.sound.effect;
+      copy.sound.tune = this.sound.tune;
+      return copy;
+    }
+  }
+
+  Game.UP = UP;
+  Game.DOWN = DOWN;
+  Game.LEFT = LEFT;
+  Game.RIGHT = RIGHT;
+  Game.IN_BAY = IN_BAY;
+  Game.HIDDEN = HIDDEN;
+
+  FG.Game = Game;
+})(window.FG);
+
+</script>
+  <script>
+window.FG = window.FG || {};
+
+// Draws one television frame the way the cartridge's kernel builds it, line by line from the top, into
+// a 160x192 buffer of RGBA pixels. Called at the point of the frame where the console draws, after the
+// game logic and before the joystick is read.
+window.FG.Screen = (function (C, W, S) {
+  'use strict';
+
+  const WIDTH = C.W;
+  const HEIGHT = C.H;
+  // Lines where HMOVE blanks the first eight pixels of the playfield border.
+  const HMOVE_LINES = [13, 30, 43, 56, 69, 82, 94, 108, 121, 134, 147, 160, 170, 182];
+  const INK = C.INK;
+
+  function rgba(hex) {
+    const value = parseInt(hex.slice(1), 16);
+    // Little-endian ImageData word: alpha, blue, green, red.
+    return (0xFF000000 | ((value & 0xFF) << 16) | (value & 0xFF00) | (value >> 16)) >>> 0;
+  }
+
+  const palettes = { color: C.palette(false).map(rgba), gray: C.palette(true).map(rgba) };
+
+  function create() {
+    return new Uint32Array(WIDTH * HEIGHT);
+  }
+
+  function draw(game, pixels) {
+    const ink = game.colorTV ? palettes.color : palettes.gray;
+    const odd = (game.counter & 1) === 1;
+    const player = game.current;
+
+    function fill(top, bottom, left, right, color) {
+      for (let y = top; y <= bottom; y++) pixels.fill(color, y * WIDTH + left, y * WIDTH + right + 1);
+    }
+
+    // A bitmap of 8-pixel lines; each pixel is stretched `scale` times and wraps around the line,
+    // as TIA objects do.
+    function sprite(lines, origin, top, scale, color) {
+      for (let row = 0; row < lines.length; row++) {
+        const y = top + row;
+        if (y < 0 || y >= HEIGHT) continue;
+        const line = lines[row];
+        const base = y * WIDTH;
+        for (let bit = 0; bit < 8; bit++) {
+          if (line.charCodeAt(bit) !== 35) continue;
+          for (let k = 0; k < scale; k++) {
+            const x = (((origin + bit * scale + k) % WIDTH) + WIDTH) % WIDTH;
+            pixels[base + x] = color;
+          }
+        }
+      }
+    }
+
+    // Objects of one row: every copy of one of its two players.
+    function object(lines, rowIndex, position, color) {
+      const copies = W.copies(game.tableLevel, rowIndex, position);
+      // Stretched players start one pixel later than single-width ones.
+      const shift = copies.scale > 1 ? 0 : -1;
+      copies.origins.forEach(function (origin) { sprite(lines, origin + shift, C.ROWS[rowIndex].top, copies.scale, color); });
+    }
+
+    function frogAt(top) {
+      sprite(S.frog[game.frog.face], game.frog.x - 1, top, 1, ink[game.frog.ink]);
+    }
+
+    // Score area and the green rim above the bays.
+    fill(0, 10, 0, WIDTH - 1, ink[INK.black]);
+    drawScore();
+    fill(11, 12, 0, WIDTH - 1, ink[INK.green]);
+
+    // Hedge and the five bays.
+    fill(13, 24, 0, WIDTH - 1, ink[INK.green]);
+    for (let bay = 0; bay < 5; bay++) fill(13, 24, 8 + bay * 32, 23 + bay * 32, ink[INK.water]);
+    drawBays();
+
+    // River, bank, road, sidewalk and the green bottom.
+    fill(25, 91, 0, WIDTH - 1, ink[INK.water]);
+    fill(92, 102, 0, WIDTH - 1, ink[INK.yellow]);
+    fill(103, 169, 0, WIDTH - 1, ink[INK.black]);
+    fill(170, 179, 0, WIDTH - 1, ink[INK.yellow]);
+    fill(180, HEIGHT - 1, 0, WIDTH - 1, ink[INK.green]);
+
+    for (let row = 10; row >= 0; row--) drawRow(row);
+    if (game.frog.row === C.SIDEWALK) frogAt(C.SIDEWALK_TOP);
+    drawLivesAndTime();
+
+    // The playfield border covers objects at both edges; HMOVE leaves its black comb on the left.
+    fill(11, HEIGHT - 1, 0, 7, ink[INK.green]);
+    fill(11, HEIGHT - 1, WIDTH - 8, WIDTH - 1, ink[INK.green]);
+    HMOVE_LINES.forEach(function (y) { fill(y, y, 0, 7, ink[INK.black]); });
+
+    function drawScore() {
+      const color = ink[INK.orange];
+      if (game.state === 'select') {
+        sprite(S.digits[game.game], 70, 1, 1, color);
+        return;
+      }
+      const score = player.score;
+      const digits = [Math.floor(score / 1000) % 10, Math.floor(score / 100) % 10, Math.floor(score / 10) % 10, score % 10];
+      const left = game.player === 0 ? 40 : 100;
+      let leading = true;
+      digits.forEach(function (digit, i) {
+        if (leading && digit === 0 && i < 3) return;
+        leading = false;
+        sprite(S.digits[digit], left + i * 8, 1, 1, color);
+      });
+    }
+
+    // On odd frames a visitor takes the bay kernel for itself, so the frogs already home blink.
+    function drawBays() {
+      const visitor = game.visitor;
+      if (odd && visitor.bay) {
+        const picture = visitor.kind === 'fly' ? S.fly : visitor.kind === 'rising' ? S.crocRising : S.crocHead;
+        if (visitor.kind) sprite(picture, 12 + (visitor.bay - 1) * 32, 14, 1, ink[INK.frog]);
+        return;
+      }
+      for (let bay = 0; bay < 5; bay++) {
+        if (player.bays & (1 << bay)) sprite(S.homeFrog, 12 + bay * 32, 14, 1, ink[INK.green]);
+      }
+    }
+
+    function rowObjects(row) {
+      const info = C.ROWS[row];
+      const positions = game.drawn[row];
+      const level = player.level;
+      let first = S[info.kind];
+      let second = first;
+      if (row === C.BANK) {
+        first = null;
+        second = level >= 4 ? S.snake.right[(game.counter & 0x10) === 0 ? 1 : 0] : null;
+      } else if (row === C.CROC_ROW) {
+        if (level >= 2) first = (game.counter & 0x40) === 0 ? S.croc.shut : S.croc.open;
+        second = S.log;
+      }
+      if (first) object(first, row, positions.a, ink[info.ink]);
+      if (second) object(second, row, positions.b, ink[row === 6 || row === 9 ? game.turtleInk(row) : info.ink]);
+    }
+
+    function drawRow(row) {
+      const top = C.ROWS[row].top;
+      const frogHere = game.frog.row === row;
+      if (row === C.BANK) {
+        // The bank has its own kernel: frog and snake every frame.
+        rowObjects(row);
+        if (frogHere) frogAt(top);
+        return;
+      }
+      if (odd && game.lady.row === row) {
+        sprite(S.lady, game.lady.x - 1, top, 1, ink[INK.white]);
+        if (frogHere) frogAt(top);
+        return;
+      }
+      if (odd && game.snake.row === row) {
+        const facing = game.snake.flags & 0x40 ? S.snake.left : S.snake.right;
+        sprite(facing[(game.counter & 0x10) === 0 ? 0 : 1], game.snake.x, top, 2, ink[INK.snake]);
+        if (frogHere) frogAt(top);
+        return;
+      }
+      if (odd && frogHere) {
+        frogAt(top);
+        return;
+      }
+      rowObjects(row);
+    }
+
+    function drawLivesAndTime() {
+      const reserves = player.reserves;
+      for (let i = 0; i < Math.min(Math.max(reserves, 0), 4); i++) fill(183, 186, 18 + i * 4, 19 + i * 4, ink[INK.white]);
+      const timer = game.timer;
+      if (timer > 0 && timer < 0x80) {
+        fill(183, 186, Math.max(8, 152 - timer), 151, ink[timer <= C.TIMER_WARNING ? INK.turtle : INK.black]);
+      }
+    }
+  }
+
+  return { WIDTH: WIDTH, HEIGHT: HEIGHT, create: create, draw: draw };
+})(window.FG.Config, window.FG.World, window.FG.Sprites);
+
+</script>
+  <script>
+window.FG = window.FG || {};
+
+// The page around the console: the 60 Hz loop, the picture, the switches and the status line.
+(function (FG) {
+  'use strict';
+
+  const C = FG.Config;
+  const STEP = 1000 / 60;
+  const RECORD_KEY = 'frogger2600.highScore';
+  const DEATHS = {
+    trânsito: 'O sapo foi atropelado.',
+    água: 'O sapo caiu no rio.',
+    tartaruga: 'A tartaruga mergulhou com o sapo nas costas.',
+    jacaré: 'O jacaré pegou o sapo.',
+    cobra: 'A cobra pegou o sapo.',
+    arbusto: 'O sapo bateu no arbusto entre as tocas.',
+    borda: 'O sapo foi levado para fora da tela.',
+    tempo: 'O tempo acabou.',
+  };
+
+  function stickBits(state) {
+    return (state.up ? FG.Game.UP : 0) | (state.down ? FG.Game.DOWN : 0) |
+      (state.left ? FG.Game.LEFT : 0) | (state.right ? FG.Game.RIGHT : 0);
+  }
+
+  FG.boot = function () {
+    const canvas = document.getElementById('screen');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const image = ctx.createImageData(C.W, C.H);
+    const view = new Uint32Array(image.data.buffer);
+    const frames = [FG.Screen.create(), FG.Screen.create()];
+    let latest = 0;
+    let drawn = 0;
+
+    const game = new FG.Game({ audio: FG.Audio, onKernel: kernel });
+    FG.game = game;
+    let paused = false;
+    let muted = false;
+    let last = null;
+    let budget = 0;
+    let pending = 0;
+    let fireWas = false;
+    let news = null;
+    let statusText = '';
+    let record = 0;
+    try { record = Number(localStorage.getItem(RECORD_KEY)) || 0; } catch (_) { /* Storage is optional. */ }
+
+    FG.paused = function () { return paused; };
+
+    function kernel(state) {
+      latest ^= 1;
+      FG.Screen.draw(state, frames[latest]);
+      drawn++;
+    }
+
+    // One emulated frame per refresh is shown as is, flicker included, like a television. When the
+    // browser shows fewer frames than the console makes, the last two are mixed like phosphor glow,
+    // so sprites drawn on alternate frames never vanish.
+    function present() {
+      if (drawn >= 2) {
+        const a = frames[0];
+        const b = frames[1];
+        for (let i = 0; i < view.length; i++) {
+          const p = a[i];
+          const q = b[i];
+          view[i] = (0xFF000000 | Math.max(p & 0xFF0000, q & 0xFF0000) | Math.max(p & 0xFF00, q & 0xFF00) | Math.max(p & 0xFF, q & 0xFF)) >>> 0;
+        }
+      } else {
+        view.set(frames[latest]);
+      }
+      ctx.putImageData(image, 0, 0);
+    }
+
+    function saveRecord() {
+      const best = Math.max(game.players[0].score, game.players[1].score);
+      if (best <= record) return;
+      record = best;
+      try { localStorage.setItem(RECORD_KEY, String(record)); } catch (_) { /* Private browsing can deny storage. */ }
+    }
+
+    function runFrame() {
+      const pad = FG.Input.poll();
+      pending |= stickBits(pad);
+      // On the select screen the red button also presses GAME RESET; the cartridge only takes the switch.
+      if (pad.fire && !fireWas && game.state === 'select') game.press('reset');
+      fireWas = pad.fire;
+      game.frame({ stick: pending, fire: pad.fire, fire2: pad.fire });
+      // The cartridge reads the joystick on odd frames; a tap shorter than that waits for the next one.
+      if (game.counter & 1) pending = 0;
+      game.events.forEach(function (event) { news = event === 'hop' ? null : event; });
+      if (game.state === 'play' && news !== 'turn') news = null;
+      saveRecord();
+    }
+
+    function tick(now) {
+      requestAnimationFrame(tick);
+      if (last === null) last = now;
+      budget += Math.min(now - last, 250);
+      last = now;
+      if (paused) {
+        budget = 0;
+        return;
+      }
+      drawn = 0;
+      let steps = 0;
+      while (budget >= STEP && steps < 4) {
+        runFrame();
+        budget -= STEP;
+        steps++;
+      }
+      if (steps === 4) budget = 0;
+      if (drawn) present();
+      syncConsole();
+      syncStatus();
+    }
+
+    function label(id, value) {
+      const node = document.getElementById(id);
+      if (node && node.textContent !== value) node.textContent = value;
+    }
+
+    function pressed(selector, value) {
+      const node = document.querySelector(selector);
+      if (node) node.setAttribute('aria-pressed', String(value));
+    }
+
+    function setPaused(value) {
+      if (game.state === 'select' || game.state === 'over') value = false;
+      paused = value;
+      FG.Input.clear();
+      if (paused) FG.Audio.stop();
+      last = null;
+    }
+
+    function action(type) {
+      FG.Audio.unlock();
+      if (type === 'start') {
+        if (game.state === 'select' || game.state === 'over') game.press('reset');
+        else setPaused(!paused);
+      } else if (type === 'pause') {
+        setPaused(!paused);
+      } else if (type === 'reset' || type === 'select') {
+        setPaused(false);
+        game.press(type);
+      } else if (/^select[1-6]$/.test(type)) {
+        setPaused(false);
+        // A number key is a quick run of GAME SELECT presses: land one game short and press once more.
+        const wanted = Number(type.slice(6));
+        game.game = wanted === 1 ? 6 : wanted - 1;
+        game.selectLatch = false;
+        game.press('select');
+      } else if (type === 'difficultyLeft' || type === 'difficultyRight') {
+        game.toggleDifficulty(type === 'difficultyLeft' ? 0 : 1);
+      } else if (type === 'color') {
+        game.toggleColor();
+        if (paused) {
+          FG.Screen.draw(game, frames[latest]);
+          drawn = 1;
+          present();
+        }
+      } else if (type === 'mute') {
+        muted = !muted;
+        FG.Audio.setMuted(muted);
+      } else if (type === 'fullscreen') {
+        toggleFullscreen();
+      }
+      syncConsole();
+      syncStatus();
+    }
+
+    // The stage holds the television and the touch pad, so a phone keeps its controls. Older Safari
+    // only has the webkit-prefixed API, and the iPhone has neither, so the button hides there.
+    const stage = document.querySelector('.stage');
+    const requestFull = stage && (stage.requestFullscreen || stage.webkitRequestFullscreen);
+    const canFullscreen = !!requestFull && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    const fullscreenButton = document.getElementById('fullscreen-button');
+    if (fullscreenButton && !canFullscreen) fullscreenButton.hidden = true;
+
+    function fullscreenElement() {
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+
+    function settle(result) {
+      if (result && typeof result.catch === 'function') result.catch(function () {});
+    }
+
+    function toggleFullscreen() {
+      if (!canFullscreen) return;
+      try {
+        if (fullscreenElement()) settle((document.exitFullscreen || document.webkitExitFullscreen).call(document));
+        else settle(requestFull.call(stage));
+      } catch (_) { /* The browser can refuse fullscreen. */ }
+    }
+
+    function markFullscreen() {
+      if (stage) stage.classList.toggle('full', fullscreenElement() === stage);
+    }
+    document.addEventListener('fullscreenchange', markFullscreen);
+    document.addEventListener('webkitfullscreenchange', markFullscreen);
+
+    function pauseOnLeave() {
+      if (game.state === 'play' || game.state === 'pause') setPaused(true);
+      else {
+        FG.Input.clear();
+        FG.Audio.stop();
+        last = null;
+      }
+      syncStatus();
+    }
+    window.addEventListener('blur', pauseOnLeave);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) pauseOnLeave(); });
+
+    function touch() {
+      return document.body.classList.contains('touch');
+    }
+
+    function syncConsole() {
+      label('game-state', C.GAMES[game.game].label);
+      const side = function (on) { return on ? 'A' : 'B'; };
+      label('diff-state', 'Dificuldade: esquerda ' + side(game.difficulty[0]) + ' · direita ' + side(game.difficulty[1]));
+      label('tv-state', game.colorTV ? 'TV colorida' : 'TV em preto e branco');
+      label('mute-state', muted ? 'Som desligado' : 'Som ligado');
+      pressed('[data-switch="tv"]', !game.colorTV);
+      pressed('[data-switch="left"]', game.difficulty[0]);
+      pressed('[data-switch="right"]', game.difficulty[1]);
+      pressed('[data-action="mute"]', muted);
+    }
+
+    function message() {
+      const who = game.twoPlayers ? 'Jogador ' + (game.player + 1) : 'O sapo';
+      const begin = touch() ? 'Toque na tela ou em GAME RESET' : 'Aperte Enter ou GAME RESET';
+      if (paused) return touch() ? 'Jogo pausado. Toque na tela ou no botão vermelho para continuar.' : 'Jogo pausado. Aperte P para continuar.';
+      if (game.state === 'select') return C.GAMES[game.game].label + '. ' + begin + ' para começar; GAME SELECT troca o jogo.';
+      if (game.state === 'over') {
+        const scores = game.twoPlayers
+          ? 'Jogador 1: ' + game.players[0].score + ' pontos · jogador 2: ' + game.players[1].score + ' pontos.'
+          : game.players[0].score + ' pontos.';
+        return 'Fim de jogo. ' + scores + ' Recorde: ' + record + '. O botão vermelho joga de novo o mesmo jogo.';
+      }
+      if (game.state === 'pause') {
+        if (game.frog.face === 'dead') return DEATHS[game.reason] || 'O sapo se perdeu.';
+        if (news === 'level') return 'Cinco sapos em casa! Começa a fase ' + game.current.level + '.';
+        if (news === 'start' || game.frog.row === C.SIDEWALK) return 'A música de abertura toca; o sapo parte quando ela acabar.';
+        if (news === 'home-lady') return 'Sapo em casa com a rã-dama: 20 pontos a mais.';
+        if (news === 'fly') return 'Sapo em casa e a mosca foi comida: 20 pontos a mais.';
+        return 'Sapo em casa!';
+      }
+      if (news === 'turn') return 'Vez do jogador ' + (game.player + 1) + '.';
+      return who + ' na travessia. Leve-o a uma toca vazia antes que o tempo acabe.';
+    }
+
+    function syncStatus() {
+      const text = message();
+      if (text !== statusText) {
+        statusText = text;
+        label('status', text);
+      }
+      const running = game.state === 'play' || game.state === 'pause';
+      label('pause-label', paused ? 'CONTINUAR' : 'PAUSA');
+      const pause = document.getElementById('pause-button');
+      if (pause) {
+        pause.disabled = !running;
+        pause.setAttribute('aria-pressed', String(paused));
+      }
+      // During a game Enter pauses, so the start button turns into GAME RESET and shows R.
+      label('start-label', running ? 'REINICIAR' : 'COMEÇAR');
+      label('start-key', running ? 'R' : 'ENTER');
+      const start = document.getElementById('start-button');
+      if (start) start.setAttribute('data-action', running ? 'reset' : 'start');
+    }
+
+    FG.Input.init(action);
+    syncConsole();
+    syncStatus();
+    requestAnimationFrame(tick);
+  };
+})(window.FG);
+
+</script>
+  <script>window.FG.boot();</script>
+</body>
+</html>
