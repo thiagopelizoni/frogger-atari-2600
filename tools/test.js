@@ -5,603 +5,525 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
+const { buildArtifact, OUTPUT } = require('./build-artifact');
 
 const ROOT = path.resolve(__dirname, '..');
-const sandbox = {
-  console,
-  Math,
-  performance: { now: () => 0 },
-};
+const sandbox = { console, Math, JSON };
 sandbox.window = sandbox;
 vm.createContext(sandbox);
-for (const filename of ['config.js', 'sprites.js', 'world.js', 'audio.js', 'input.js', 'game.js']) {
-  const code = fs.readFileSync(path.join(ROOT, 'js', filename), 'utf8');
-  assert.equal(/\brequire\s*\(/.test(code), false, `${filename} não pode usar require`);
-  assert.equal(/module\.exports/.test(code), false, `${filename} não pode usar module.exports`);
-  vm.runInContext(code, sandbox, { filename });
+for (const filename of ['config.js', 'sprites.js', 'world.js', 'game.js', 'screen.js']) {
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', filename), 'utf8'), sandbox, { filename });
 }
-
 const FG = sandbox.FG;
 const C = FG.Config;
-const World = FG.World;
+const W = FG.World;
+const Game = FG.Game;
+const { UP, DOWN, LEFT, RIGHT } = Game;
 
-function note(message) {
-  console.log(`passou: ${message}`);
+function run(game, frames, pad) {
+  for (let i = 0; i < frames; i++) game.frame(pad || {});
 }
 
-function play(variation) {
-  const game = new FG.Game();
-  if (variation) game.action(`select${variation}`);
-  else game.action('reset');
+// Frames until `done` holds, failing after `limit`.
+function until(game, done, limit, pad) {
+  let frames = 0;
+  while (!done(game)) {
+    assert.ok(frames < limit, `a condição não chegou em ${limit} quadros`);
+    game.frame(pad || {});
+    frames++;
+  }
+  return frames;
+}
+
+// A game in play, right after the start tune, optionally moved to another level.
+function playing(number, level) {
+  const game = new Game();
+  game.game = number || 1;
+  game.press('reset');
+  until(game, (g) => g.state === 'play', 600);
+  if (level) {
+    game.current.level = level;
+    game.tableLevel = level;
+  }
   return game;
 }
 
-function release(game) {
-  game.step(0, {});
+// The joystick is read on odd frames: push on one, and let the next odd frame see it released.
+function hop(game, stick) {
+  if (((game.counter + 1) & 1) === 0) game.frame({});
+  game.frame({ stick });
+  game.frame({});
+  game.frame({});
 }
 
-function parkOthers(lane, keep, x, w) {
-  for (const obj of lane.objects) {
-    if (obj === keep) continue;
-    obj.x = x;
-    obj.w = w;
-  }
+// Runs one odd frame with the rows exactly as given, so the collision sees them.
+function oddFrame(game, pad) {
+  if (((game.counter + 1) & 1) === 0) game.frame({});
+  game.frame(pad || {});
 }
 
-function parkRoads(game) {
-  for (let row = 1; row <= 5; row++) {
-    for (const obj of game.slot.world.lanes[row].objects) {
-      obj.x = 0;
-      obj.w = 8;
+function placeFrog(game, row, x) {
+  game.frog.row = row;
+  game.frog.x = x;
+  game.frog.face = 'up';
+  game.frog.riding = row >= 6;
+}
+
+test('colisão do cartucho: o vão de um grupo de tartarugas segura o sapo e o espaço de 32 px não', () => {
+  // A trio of single turtles 16 px apart starting at 40: copies at 40, 56 and 72.
+  for (let x = 33; x <= 80; x++) assert.equal(W.touches(x, 40, 8) || W.touches(x, 56, 8) || W.touches(x, 72, 8), true, `x ${x}`);
+  // Two copies 32 px apart (40 and 72): the frog between 49 and 64 is in the water.
+  for (let x = 49; x <= 64; x++) assert.equal(W.touches(x, 40, 8) || W.touches(x, 72, 8), false, `x ${x}`);
+  // The pixel past the right edge still counts, and objects wrap around the 160 px line.
+  assert.equal(W.touches(48, 40, 8), true);
+  assert.equal(W.touches(49, 40, 8), false);
+  assert.equal(W.touches(3, 155, 8), true);
+  assert.equal(W.touches(156, 3, 8), true);
+});
+
+test('as tocas aceitam o sapo em [11, 18] + 32n; o resto do topo é arbusto', () => {
+  for (let x = 1; x <= 160; x++) {
+    const game = playing(1);
+    placeFrog(game, 10, x);
+    game.enterBay();
+    const offset = x - 11;
+    const inside = offset >= 0 && offset % 32 < 8 && offset < 5 * 32;
+    if (inside) {
+      assert.equal(game.frog.row, Game.IN_BAY, `x ${x} entra`);
+      assert.equal(game.current.bays, 1 << Math.floor(offset / 32), `x ${x} enche a toca certa`);
+    } else {
+      assert.equal(game.frog.face, 'dead', `x ${x} bate no arbusto`);
+      assert.equal(game.reason, 'arbusto');
     }
   }
-}
+});
 
-function bayX(index) {
-  const bay = C.BAYS[index];
-  return bay.left + Math.floor((bay.right - bay.left - C.FROG_W) / 2);
-}
+test('toca ocupada não deixa entrar: o sapo fica na fileira de cima, sem som nem pontos', () => {
+  const game = playing(1);
+  game.current.bays = 0x04;
+  placeFrog(game, 10, 75);
+  const before = game.current.score;
+  game.events.length = 0;
+  game.enterBay();
+  assert.equal(game.frog.row, 10);
+  assert.equal(game.state, 'play');
+  assert.equal(game.current.score, before);
+  assert.deepEqual(Array.from(game.events), []);
+});
 
-function saveBay(game, index) {
-  release(game);
-  game.slot.row = 11;
-  game.slot.x = bayX(index);
-  game.slot.timeLeft = 10;
-  game.step(0, { up: true });
-}
+test('chegar em casa vale 5 mais 2 por unidade de tempo; o próximo sapo sai 9 quadros depois', () => {
+  const game = playing(1);
+  placeFrog(game, 10, 43);
+  game.timer = 30;
+  game.enterBay();
+  assert.equal(game.current.score, 65);
+  assert.equal(game.state, 'pause');
+  const frames = until(game, (g) => g.state === 'play', 20);
+  assert.equal(frames, 9);
+  assert.equal(game.frog.row, C.SIDEWALK);
+  assert.equal(game.frog.x, 80);
+  assert.equal(game.timer, 30);
+});
 
-function squash(game) {
-  const car = game.slot.world.lanes[1].objects[0];
-  car.x = game.slot.x;
-  car.w = 24;
-  game.slot.row = 1;
-  game.step(0, {});
-}
+test('a quinta toca dá 99 pontos (não 100), sobe a fase e toca a música ímpar', () => {
+  const game = playing(1);
+  game.current.bays = 0x0F;
+  placeFrog(game, 10, 139);
+  game.timer = 30;
+  game.enterBay();
+  game.frame({});
+  assert.equal(game.current.score, 164);
+  assert.equal(game.current.level, 2);
+  assert.equal(game.sound.tune, C.TUNES.theme);
+  const frames = until(game, (g) => g.state === 'play', 600);
+  assert.ok(frames >= 434 && frames <= 437, `a música durou ${frames} quadros`);
+  assert.equal(game.current.bays, 0);
+  // Level 2 ends with the other tune.
+  game.current.bays = 0x0F;
+  placeFrog(game, 10, 139);
+  game.enterBay();
+  game.frame({});
+  assert.equal(game.sound.tune, C.TUNES.start);
+});
 
-function finishDeath(game) {
-  assert.equal(game.phase, 'dying');
-  game.step(C.DEATH_TIME, {});
-}
+test('mosca vale 20, jacaré subindo deixa entrar sem bônus e jacaré fora da água mata', () => {
+  const fly = playing(1);
+  fly.visitor.bay = 3;
+  fly.visitor.kind = 'fly';
+  placeFrog(fly, 10, 75);
+  fly.timer = 10;
+  fly.enterBay();
+  assert.equal(fly.current.score, 20 + 5 + 20);
+  assert.equal(fly.visitor.bay, 0);
 
-function signs(world, from, to) {
-  const out = [];
-  for (let row = from; row <= to; row++) out.push(Math.sign(world.lanes[row].objects[0].speed));
-  return out;
-}
+  const rising = playing(1);
+  rising.visitor.bay = 2;
+  rising.visitor.kind = 'rising';
+  placeFrog(rising, 10, 43);
+  rising.timer = 10;
+  rising.enterBay();
+  assert.equal(rising.current.score, 5 + 20);
+  assert.equal(rising.frog.row, Game.IN_BAY);
 
-function speeds(world, from, to) {
-  const out = [];
-  for (let row = from; row <= to; row++) out.push(Math.abs(world.lanes[row].objects[0].speed));
-  return out;
-}
+  const croc = playing(1);
+  croc.visitor.bay = 1;
+  croc.visitor.kind = 'croc';
+  placeFrog(croc, 10, 11);
+  croc.enterBay();
+  assert.equal(croc.frog.face, 'dead');
+  assert.equal(croc.reason, 'jacaré');
+});
 
-function metrics(world) {
-  let floats = 0;
-  let vehicles = 0;
-  let max = 0;
-  let mixed = false;
-  for (const lane of world.lanes) {
-    const seen = new Set();
-    for (const obj of lane.objects) {
-      const speed = Math.abs(obj.speed);
-      if (speed > max) max = speed;
-      if (lane.kind === 'river') {
-        floats += 1;
-        const key = Math.round(speed * 100);
-        if (seen.size && !seen.has(key)) mixed = true;
-        seen.add(key);
+test('visitantes: mosca nas fases ímpares, jacaré nas pares, 157 quadros cada etapa', () => {
+  const game = playing(1);
+  until(game, (g) => g.visitor.bay !== 0, 1200);
+  assert.equal(game.visitor.kind, 'fly');
+  const shown = until(game, (g) => g.visitor.bay === 0, 400);
+  assert.equal(shown, C.VISIT);
+
+  const even = playing(1, 2);
+  until(even, (g) => g.visitor.bay !== 0, 1200);
+  assert.equal(even.visitor.kind, 'rising');
+  assert.equal(until(even, (g) => g.visitor.kind === 'croc', 400), C.VISIT);
+  assert.equal(until(even, (g) => g.visitor.bay === 0, 400), C.VISIT);
+});
+
+test('a rã-dama sobe no sapo a até 5 px à esquerda ou 6 à direita e vale 20 em casa', () => {
+  for (const [offset, carried] of [[-6, false], [-5, true], [0, true], [6, true], [7, false]]) {
+    const game = playing(1);
+    game.lady = { row: C.LADY_ROW, x: 60, step: 0, flags: 0xC0 };
+    placeFrog(game, C.LADY_ROW, 60 - offset);
+    game.counter = 1;
+    game.updateLady();
+    assert.equal(game.lady.row === 0x7F, carried, `diferença ${offset}`);
+    if (carried) assert.equal(game.frog.ink, C.INK.olive);
+  }
+  const game = playing(1);
+  game.lady = { row: 0x7F, x: 60, step: 0, flags: 0x40 };
+  placeFrog(game, 10, 107);
+  game.timer = 0;
+  game.enterBay();
+  assert.equal(game.current.score, 25);
+});
+
+test('pular para a frente só pontua numa fileira nova, no máximo 11 pontos por sapo', () => {
+  const game = playing(1);
+  hop(game, UP);
+  assert.equal(game.current.score, 1);
+  hop(game, DOWN);
+  hop(game, UP);
+  assert.equal(game.current.score, 1, 'voltar e avançar de novo não pontua');
+  hop(game, UP);
+  assert.equal(game.current.score, 2);
+  assert.equal(game.frog.best, 2);
+});
+
+test('um sapo extra a cada milhar, só com menos de quatro na reserva', () => {
+  const game = playing(1);
+  game.current.score = 995;
+  game.current.reserves = 3;
+  game.addScore(5);
+  assert.equal(game.current.score, 1000);
+  assert.equal(game.current.reserves, 4);
+  game.current.score = 1995;
+  game.addScore(5);
+  assert.equal(game.current.reserves, 4, 'a reserva para em quatro');
+  game.current.score = 9990;
+  game.current.reserves = 1;
+  game.addScore(20);
+  assert.equal(game.current.score, 10);
+  assert.equal(game.current.reserves, 2, 'a virada do placar também conta');
+});
+
+test('o tempo: 30 unidades de 64 quadros, aviso em 6 e o sapo se perde no fim', () => {
+  const game = playing(1);
+  let warned = 0;
+  const frames = until(game, (g) => {
+    if (g.timer === C.TIMER_WARNING && g.sound.effect === C.EFFECTS.warning) warned++;
+    return g.frog.face === 'dead';
+  }, 2000);
+  assert.ok(frames >= 1856 && frames <= 1920, `o tempo durou ${frames} quadros`);
+  assert.ok(warned > 0, 'o aviso tocou');
+  assert.equal(game.reason, 'tempo');
+});
+
+test('depois de uma morte o próximo sapo sai em 71 quadros', () => {
+  const game = playing(1);
+  game.die('trânsito');
+  assert.equal(until(game, (g) => g.state === 'play', 100), 71);
+  assert.equal(game.current.reserves, 3);
+  assert.equal(game.frog.best, 0);
+});
+
+test('GAME RESET toca a música de abertura e o sapo parte em 435 a 437 quadros', () => {
+  const game = new Game();
+  game.press('reset');
+  const frames = until(game, (g) => g.state === 'play', 600);
+  assert.ok(frames >= 435 && frames <= 438, `${frames} quadros`);
+  assert.equal(game.current.reserves, 4);
+  assert.equal(game.current.level, 1);
+});
+
+test('Speedy Frogger repete o pulo a cada 8 quadros; os jogos 1 a 4 pedem um empurrão novo', () => {
+  const speedy = playing(5);
+  if (((speedy.counter + 1) & 1) === 0) speedy.frame({});
+  const hops = [];
+  for (let i = 0; i < 40; i++) {
+    speedy.frame({ stick: RIGHT });
+    if (speedy.events.includes('hop')) hops.push(i);
+  }
+  assert.ok(hops.length >= 4);
+  for (let i = 2; i < hops.length; i++) assert.equal(hops[i] - hops[i - 1], 8);
+
+  const plain = playing(1);
+  run(plain, 40, { stick: RIGHT });
+  assert.equal(plain.frog.x, 88, 'segurar não repete');
+});
+
+test('trocar de direção sem soltar já pula, e diagonal não faz nada', () => {
+  const game = playing(1);
+  if (((game.counter + 1) & 1) === 0) game.frame({});
+  game.frame({ stick: UP });
+  game.frame({ stick: UP });
+  game.frame({ stick: LEFT });
+  assert.equal(game.frog.row, 0);
+  assert.equal(game.frog.x, 72);
+  const diagonal = playing(1);
+  run(diagonal, 4, { stick: UP | RIGHT });
+  assert.equal(diagonal.frog.row, C.SIDEWALK);
+  assert.equal(diagonal.frog.x, 80);
+});
+
+test('o sapo não pula para fora da tela nem para trás da calçada', () => {
+  const game = playing(1);
+  game.frog.x = 144;
+  hop(game, RIGHT);
+  assert.equal(game.frog.x, 144);
+  game.frog.x = 8;
+  hop(game, LEFT);
+  assert.equal(game.frog.x, 8);
+  hop(game, DOWN);
+  assert.equal(game.frog.row, C.SIDEWALK);
+});
+
+test('dificuldade A: levado para x ≥ 147 ou x < 4, o sapo se perde; em B ele dá a volta', () => {
+  for (const [x, alive] of [[146, true], [147, false], [4, true], [3, false]]) {
+    const game = playing(1);
+    game.difficulty[0] = true;
+    placeFrog(game, 8, x);
+    game.rows[8].a = x - 4;
+    game.rows[8].b = (x + 28) % 160 || 160;
+    oddFrame(game);
+    assert.equal(game.frog.face !== 'dead', alive, `x ${x}`);
+  }
+  const game = playing(1);
+  placeFrog(game, 8, 160);
+  game.rows[8].a = 140;
+  game.rows[8].b = 172 - 160;
+  oddFrame(game);
+  assert.notEqual(game.frog.face, 'dead');
+  until(game, (g) => g.frog.x === 1, 10);
+});
+
+test('a cabeça do jacaré mata de p + 22 a p + 32; o resto do corpo carrega', () => {
+  for (let d = -7; d <= 34; d++) {
+    const game = playing(1, 2);
+    game.rows[10].a = 40;
+    game.rows[10].b = 120;
+    placeFrog(game, 10, 40 + d);
+    oddFrame(game);
+    const dead = game.frog.face === 'dead';
+    if (d >= 22 && d <= 32) assert.equal(dead && game.reason, 'jacaré', `d ${d}`);
+    else if (d <= 32) assert.equal(dead, false, `d ${d}`);
+  }
+});
+
+test('a cobra da margem só morde com a cabeça, de p + 7 a p + 14', () => {
+  for (let d = -8; d <= 20; d++) {
+    const game = playing(1, 4);
+    game.rows[C.BANK].b = 60;
+    placeFrog(game, C.BANK, 60 + d);
+    oddFrame(game);
+    assert.equal(game.frog.face === 'dead', d >= 7 && d <= 14, `d ${d}`);
+  }
+});
+
+test('a cobra do tronco morde pelo lado para onde está virada', () => {
+  const cases = [[false, 8, true], [false, 15, true], [false, 7, false], [false, -3, false], [true, 0, true], [true, -7, true], [true, 1, false], [true, 10, false]];
+  for (const [left, d, bitten] of cases) {
+    const game = playing(1, 5);
+    game.snake = { row: C.SNAKE_ROW, x: 60, flags: left ? 0x40 : 0 };
+    game.rows[8].a = 40;
+    game.rows[8].b = 72;
+    placeFrog(game, C.SNAKE_ROW, 60 + d);
+    game.updateSnake();
+    assert.equal(game.frog.face === 'dead', bitten, `${left ? 'esquerda' : 'direita'} ${d}`);
+  }
+});
+
+test('só o segundo grupo de cada fileira de tartarugas mergulha, num ciclo de 1024 quadros', () => {
+  assert.deepEqual(Array.from(C.DIVE[6]), [C.INK.turtle, C.INK.diving, C.INK.gone, C.INK.diving]);
+  assert.deepEqual(Array.from(C.DIVE[9]), [C.INK.diving, C.INK.gone, C.INK.diving, C.INK.turtle]);
+  const game = playing(1);
+  game.divePhase = 2;
+  game.rows[6].a = 100;
+  game.rows[6].b = 40;
+  placeFrog(game, 6, 44);
+  oddFrame(game);
+  assert.equal(game.reason, 'tartaruga');
+  const safe = playing(1);
+  safe.divePhase = 2;
+  safe.rows[6].a = 40;
+  safe.rows[6].b = 100;
+  placeFrog(safe, 6, 44);
+  oddFrame(safe);
+  assert.notEqual(safe.frog.face, 'dead');
+  const phases = new Game();
+  const start = phases.divePhase;
+  run(phases, 256);
+  assert.equal(phases.divePhase, (start + 1) & 3);
+});
+
+test('cada fileira anda 1 px nos quadros em que (contador & máscara) é zero', () => {
+  for (let level = 1; level <= 10; level++) {
+    for (let row = 0; row < 11; row++) {
+      const rows = W.createRows();
+      const drawn = W.createRows();
+      let moved = 0;
+      for (let counter = 0; counter < 256; counter++) {
+        const before = rows[row].a;
+        W.advance(rows, drawn, level, counter);
+        if (rows[row].a !== before) moved++;
       }
-      if (lane.kind === 'road') vehicles += 1;
+      assert.equal(moved, 256 / (C.MASKS[level - 1][row] + 1), `fase ${level}, fileira ${row}`);
     }
   }
-  return { floats, vehicles, max, mixed };
-}
-
-test('a partida começa na calçada com cinco sapos e as cinco pistas alternadas', () => {
-  const game = play();
-  assert.equal(game.phase, 'playing');
-  assert.equal(game.slot.lives, 5);
-  assert.equal(game.slot.row, 0);
-  assert.equal(game.slot.x, C.START_X);
-  assert.equal(game.slot.timeLeft, 30);
-  assert.equal(C.W, 160);
-  assert.equal(C.H, 192);
-  assert.deepEqual(signs(game.slot.world, 1, 5), [1, -1, 1, -1, 1]);
-  assert.equal(new Set(speeds(game.slot.world, 1, 5)).size, 5);
-  assert.deepEqual(signs(game.slot.world, 7, 11), [-1, 1, -1, 1, -1]);
-  assert.equal(new Set(speeds(game.slot.world, 7, 11)).size, 5);
-  assert.equal(game.slot.world.lanes[5].kind, 'road');
-  assert.equal(game.slot.world.lanes[6].kind, 'bank');
-  assert.equal(game.slot.world.lanes[7].kind, 'river');
-  note('cinco vidas na calçada, cinco pistas em sentidos alternados e cinco correntes');
+  assert.equal(W.table(11), 0, 'a fase 11 repete as tabelas da fase 1');
 });
 
-test('contato com veículo mata e a margem do rio não', () => {
-  const killed = play();
-  const landed = killed.slot.x;
-  killed.slot.world.lanes[1].objects[0].x = landed;
-  killed.slot.world.lanes[1].objects[0].w = 24;
-  killed.step(0, { up: true });
-  assert.equal(killed.phase, 'dying');
-  assert.equal(killed.reason, 'veiculo');
-  assert.equal(killed.slot.lives, 4);
-  assert.equal(killed.slot.score, 0);
-
-  const bank = play();
-  release(bank);
-  bank.slot.row = 5;
-  bank.slot.x = C.START_X;
-  bank.step(0, { up: true });
-  assert.equal(bank.phase, 'playing');
-  assert.equal(bank.slot.row, 6);
-  note('contato com veículo mata e a margem do rio não');
-});
-
-test('água mata; tronco, vão entre tartarugas e jacaré carregam; boca e mergulho matam', () => {
-  const water = play();
-  release(water);
-  water.slot.row = 6;
-  water.slot.x = C.START_X;
-  parkOthers(water.slot.world.lanes[7], null, 0, 8);
-  water.step(0, { up: true });
-  assert.equal(water.phase, 'dying');
-  assert.equal(water.reason, 'agua');
-  note('água aberta mata');
-
-  const ride = play();
-  const log = ride.slot.world.lanes[7].objects[0];
-  log.x = 40;
-  log.speed = 20;
-  parkOthers(ride.slot.world.lanes[7], log, 120, 8);
-  ride.slot.row = 7;
-  ride.slot.x = 48;
-  ride.step(0, {});
-  assert.equal(ride.phase, 'playing');
-  const ridingX = ride.slot.x;
-  ride.step(0.5, {});
-  assert.equal(ride.phase, 'playing');
-  assert.ok(Math.abs(ride.slot.x - (ridingX + 10)) < 1e-9);
-  release(ride);
-  ride.slot.x = log.x + log.w - 6;
-  ride.step(0, { right: true });
-  assert.equal(ride.phase, 'dying');
-  assert.equal(ride.reason, 'agua');
-  note('tronco carrega o sapo e sair pela lateral para a água mata');
-
-  const turtles = play();
-  const group = turtles.slot.world.lanes[8].objects.find((obj) => obj.dives);
-  group.x = 40;
-  group.speed = 16;
-  group.clock = 0;
-  parkOthers(turtles.slot.world.lanes[8], group, 120, 8);
-  const gap = group.segments.find((part) => part.part === 'gap');
-  turtles.slot.row = 8;
-  turtles.slot.x = group.x + gap.offset + gap.w / 2 - C.FROG_W / 2;
-  turtles.step(0, {});
-  assert.equal(turtles.phase, 'playing');
-  const gapX = turtles.slot.x;
-  turtles.step(0.5, {});
-  assert.equal(turtles.phase, 'playing');
-  assert.ok(Math.abs(turtles.slot.x - (gapX + 8)) < 1e-9);
-  note('o vão dentro do grupo de tartarugas é seguro e carrega o sapo');
-
-  group.clock = C.DIVE_WARN + 0.05;
-  turtles.slot.x = group.x + gap.offset;
-  turtles.step(0, {});
-  assert.equal(turtles.phase, 'playing');
-  note('tartaruga azul, ainda na superfície, não mata');
-
-  group.clock = C.DIVE_UNDER - 0.04;
-  turtles.slot.x = group.x + gap.offset;
-  turtles.step(0.1, {});
-  assert.equal(turtles.phase, 'dying');
-  assert.equal(turtles.reason, 'mergulho');
-  note('tartaruga que mergulha embaixo do sapo mata');
-
-  const edge = play();
-  const end = edge.slot.world.lanes[8].objects.find((obj) => obj.kind === 'turtles');
-  end.x = 40;
-  end.clock = 0;
-  end.dives = false;
-  parkOthers(edge.slot.world.lanes[8], end, 130, 8);
-  edge.slot.row = 8;
-  edge.slot.x = 68;
-  edge.step(0, { right: true });
-  assert.equal(edge.phase, 'dying');
-  assert.equal(edge.reason, 'agua');
-  note('sair pela ponta do grupo de tartarugas para a água mata');
-
-  const gatorGame = play();
-  const gator = gatorGame.slot.world.lanes[9].objects.find((obj) => obj.kind === 'alligator');
-  gator.x = 30;
-  gator.speed = Math.sign(gator.speed) * 20;
-  parkOthers(gatorGame.slot.world.lanes[9], gator, 120, 8);
-  const parts = World.alligatorParts(gator.speed);
-  function stand(partName) {
-    const part = parts.find((item) => item.part === partName);
-    gatorGame.slot.row = 9;
-    gatorGame.slot.x = gator.x + part.offset;
-    gatorGame.phase = 'playing';
-    gatorGame.slot.lives = 5;
+test('chegar em casa devolve duas pistas vizinhas ao começo, e a tela só as vê quando andam', () => {
+  const game = playing(1);
+  run(game, 3);
+  const before = game.rows.map((r) => ({ a: r.a, b: r.b }));
+  const drawn = game.drawn.map((r) => ({ a: r.a, b: r.b }));
+  placeFrog(game, 10, 11);
+  const first = game.counter & 3;
+  game.enterBay();
+  for (let r = 0; r < 11; r++) {
+    const snapped = r === first || r === first + 1;
+    assert.deepEqual({ a: game.rows[r].a, b: game.rows[r].b }, snapped ? { a: C.ROWS[r].start[0], b: C.ROWS[r].start[1] } : before[r]);
+    assert.deepEqual({ a: game.drawn[r].a, b: game.drawn[r].b }, drawn[r]);
   }
-  stand('back');
-  gatorGame.step(0, {});
-  assert.equal(gatorGame.phase, 'playing');
-  const backX = gatorGame.slot.x;
-  gatorGame.step(0.5, {});
-  assert.equal(gatorGame.phase, 'playing');
-  assert.ok(Math.abs(gatorGame.slot.x - (backX + gator.speed * 0.5)) < 1e-9);
-  note('o dorso do jacaré é seguro e carrega o sapo');
-
-  stand('tail');
-  gatorGame.prev = {};
-  gatorGame.step(0, {});
-  assert.equal(gatorGame.phase, 'playing');
-  note('a cauda do jacaré é segura');
-
-  stand('jaws');
-  gatorGame.prev = {};
-  gatorGame.step(0, {});
-  assert.equal(gatorGame.phase, 'dying');
-  assert.equal(gatorGame.reason, 'mandibula');
-  note('a boca do jacaré mata');
 });
 
-test('dificuldade A mata fora da tela, B dá a volta, e o pulo não sai da tela', () => {
-  function setup(hard) {
-    const game = play();
-    const log = game.slot.world.lanes[7].objects[0];
-    log.x = 140;
-    log.w = 36;
-    log.speed = 80;
-    parkOthers(game.slot.world.lanes[7], log, 10, 8);
-    game.slot.row = 7;
-    game.slot.x = 150;
-    game.switches[0] = hard;
-    return game;
-  }
-  const hard = setup(true);
-  hard.step(0.5, {});
-  assert.equal(hard.phase, 'dying');
-  assert.equal(hard.reason, 'borda');
-  note('dificuldade A mata o sapo carregado para fora da tela');
-
-  const soft = setup(false);
-  soft.step(0.5, {});
-  assert.equal(soft.phase, 'playing');
-  assert.equal(soft.slot.x, 30);
-  note('dificuldade B traz o sapo de volta pelo outro lado');
-
-  const blocked = play();
-  blocked.slot.x = 0;
-  blocked.step(0, { left: true });
-  assert.equal(blocked.slot.x, 0);
-  assert.equal(blocked.phase, 'playing');
-  release(blocked);
-  blocked.slot.x = C.W - C.FROG_W;
-  blocked.step(0, { right: true });
-  assert.equal(blocked.slot.x, C.W - C.FROG_W);
-  assert.equal(blocked.phase, 'playing');
-  note('o sapo não consegue pular para fora da tela');
-});
-
-test('toca alinhada salva, arbusto mata, toca ocupada é recusada e jacaré na toca não salva', () => {
-  const game = play();
-  assert.equal(game.slot.score, 0);
-  saveBay(game, 2);
-  assert.equal(game.phase, 'playing');
-  assert.equal(game.slot.homes[2].filled, true);
-  assert.equal(game.slot.score, 26);
-  assert.equal(game.slot.lives, 5);
-  assert.equal(game.slot.row, 0);
-  note('toca vazia e alinhada salva, com 1 + 5 + 2 pontos por segundo');
-
-  const again = game.slot.score;
-  release(game);
-  game.slot.row = 11;
-  game.slot.x = bayX(2);
-  game.slot.timeLeft = 10;
-  game.step(0, { up: true });
-  assert.equal(game.phase, 'playing');
-  assert.equal(game.slot.row, 11);
-  assert.equal(game.slot.homes[2].filled, true);
-  assert.equal(game.slot.score, again);
-  assert.equal(game.slot.lives, 5);
-  note('toca ocupada é recusada');
-
-  const shrub = play();
-  release(shrub);
-  shrub.slot.row = 11;
-  shrub.slot.x = bayX(2) - 8;
-  shrub.step(0, { up: true });
-  assert.equal(shrub.phase, 'dying');
-  assert.equal(shrub.reason, 'arbusto');
-  assert.equal(shrub.slot.homes.some((home) => home.filled), false);
-  note('arbusto ao lado da toca mata');
-
-  const head = play();
-  head.slot.homes[2].gator = true;
-  release(head);
-  head.slot.row = 11;
-  head.slot.x = bayX(2);
-  head.step(0, { up: true });
-  assert.equal(head.phase, 'dying');
-  assert.equal(head.reason, 'jacare');
-  assert.equal(head.slot.homes[2].filled, false);
-  note('toca com cabeça de jacaré não salva');
-});
-
-test('a faixa de tempo avisa e mata no zero', () => {
-  const warn = play();
-  warn.slot.timeLeft = 5.2;
-  warn.step(0.3, {});
-  assert.equal(warn.phase, 'playing');
-  assert.equal(warn.slot.warning, true);
-  assert.ok(warn.slot.timeLeft < 5);
-  note('os últimos segundos acendem o aviso');
-
-  const expired = play();
-  expired.slot.timeLeft = 0.05;
-  expired.step(0.1, {});
-  assert.equal(expired.phase, 'dying');
-  assert.equal(expired.reason, 'tempo');
-  assert.equal(expired.slot.timeLeft, 0);
-  assert.equal(expired.slot.lives, 4);
-  note('o tempo zerado mata o sapo');
-});
-
-test('cinco tocas avançam para uma fase mais difícil, com cobra', () => {
-  const game = play();
-  const before = metrics(game.slot.world);
-  assert.equal(game.slot.world.lanes[6].objects.some((obj) => obj.kind === 'snake'), false);
-  for (let bay = 0; bay < 4; bay++) saveBay(game, bay);
-  assert.equal(game.slot.level, 1);
-  assert.equal(game.slot.homes.filter((home) => home.filled).length, 4);
-  assert.equal(game.slot.score, 104);
-  saveBay(game, 4);
-  assert.equal(game.slot.score, 230);
-  assert.equal(game.slot.level, 2);
-  assert.equal(game.slot.lives, 5);
-  assert.equal(game.slot.homes.some((home) => home.filled), false);
-  const after = metrics(game.slot.world);
-  assert.ok(after.floats < before.floats);
-  assert.ok(after.vehicles > before.vehicles);
-  assert.ok(after.max > before.max);
-  assert.equal(after.mixed, true);
-  const snake = game.slot.world.lanes[6].objects.find((obj) => obj.kind === 'snake');
-  assert.ok(snake);
-  note('cinco tocas valem 100 e a fase seguinte é mais difícil e tem cobra');
-
-  snake.x = 40;
-  snake.speed = 20;
-  const mouth = World.snakeMouth(snake);
-  game.slot.row = 6;
-  game.slot.x = snake.x + 2;
-  game.step(0, {});
-  assert.equal(game.phase, 'playing');
-  const bodyX = game.slot.x;
-  game.step(0.3, {});
-  assert.equal(game.phase, 'playing');
-  assert.equal(game.slot.x, bodyX);
-  note('o corpo da cobra não mata e não carrega o sapo');
-
-  game.slot.x = snake.x + mouth.offset;
-  game.step(0, {});
-  assert.equal(game.phase, 'dying');
-  assert.equal(game.reason, 'cobra');
-  note('a boca da cobra mata');
-
-  finishDeath(game);
-  for (let bay = 0; bay < 5; bay++) saveBay(game, bay);
-  assert.equal(game.slot.level, 3);
-  const ridden = game.slot.world.lanes[11].objects.find((obj) => obj.snake);
-  assert.ok(ridden);
-  ridden.x = 40;
-  ridden.speed = 16;
-  parkOthers(game.slot.world.lanes[11], ridden, 120, 8);
-  const bite = World.logMouth(ridden);
-  game.slot.row = 11;
-  game.slot.x = ridden.x + ridden.snake.offset;
-  game.step(0, {});
-  assert.equal(game.phase, 'playing');
-  game.slot.x = ridden.x + bite.offset;
-  game.step(0, {});
-  assert.equal(game.phase, 'dying');
-  assert.equal(game.reason, 'cobra');
-  note('nas fases seguintes a cobra da tora morde e o corpo continua seguro');
-});
-
-test('a pontuação do manual, a rã, a mosca e o sapo extra abaixo de quatro vidas', () => {
-  const forward = play();
-  parkRoads(forward);
-  forward.step(0, { up: true });
-  assert.equal(forward.slot.score, 1);
-  assert.equal(forward.slot.row, 1);
-  forward.step(0, { left: true });
-  assert.equal(forward.slot.score, 1);
-  release(forward);
-  forward.step(0, { down: true });
-  assert.equal(forward.slot.score, 1);
-  assert.equal(forward.slot.row, 0);
-  note('pulo para a frente vale 1; para o lado e para trás não pontuam');
-
-  const ladyGame = play();
-  const lady = ladyGame.slot.world.lady;
-  const log = ladyGame.slot.world.lanes[lady.row].objects[lady.index];
-  log.x = 40;
-  parkOthers(ladyGame.slot.world.lanes[lady.row], log, 120, 8);
-  ladyGame.slot.row = lady.row;
-  ladyGame.slot.x = World.ladyX(ladyGame.slot.world);
-  ladyGame.step(0, {});
-  assert.equal(ladyGame.slot.ladyCaught, true);
-  ladyGame.slot.row = 11;
-  ladyGame.slot.x = bayX(1);
-  ladyGame.slot.timeLeft = 10;
-  ladyGame.step(0, { up: true });
-  assert.equal(ladyGame.slot.score, 46);
-  assert.equal(ladyGame.slot.homes[1].filled, true);
-  note('levar a rã para casa vale 20');
-
-  const fly = play();
-  fly.slot.homes[0].fly = true;
-  release(fly);
-  fly.slot.row = 11;
-  fly.slot.x = bayX(0);
-  fly.slot.timeLeft = 10;
-  fly.step(0, { up: true });
-  assert.equal(fly.slot.score, 46);
-  assert.equal(fly.slot.homes[0].filled, true);
-  assert.equal(fly.slot.homes[0].fly, false);
-  note('comer a mosca vale 20');
-
-  const extra = play();
-  parkRoads(extra);
-  const gates = [999, 1999, 2999, 3999];
-  const lives = [1, 2, 3, 4];
-  const afterLives = [2, 3, 4, 4];
-  for (let i = 0; i < gates.length; i++) {
-    if (i) release(extra);
-    extra.slot.score = gates[i];
-    extra.slot.lives = lives[i];
-    extra.step(0, { up: true });
-    assert.equal(extra.slot.score, gates[i] + 1);
-    assert.equal(extra.slot.lives, afterLives[i]);
-  }
-  note('cada 1000 pontos dá um sapo só enquanto houver menos de quatro');
-
-  const full = play();
-  parkRoads(full);
-  full.slot.score = 999;
-  full.slot.lives = 5;
-  full.step(0, { up: true });
-  assert.equal(full.slot.score, 1000);
-  assert.equal(full.slot.lives, 5);
-  note('com quatro ou mais sapos, cruzar 1000 não ganha extra');
-});
-
-test('Speedy repete o pulo e as variações 1 a 4 dão um pulo por comando', () => {
-  const slow = play(1);
-  parkRoads(slow);
-  assert.equal(C.speedy(1), false);
-  slow.step(0, { up: true });
-  assert.equal(slow.slot.row, 1);
-  slow.step(1, { up: true });
-  assert.equal(slow.slot.row, 1);
-  release(slow);
-  slow.step(0, { up: true });
-  assert.equal(slow.slot.row, 2);
-  note('jogos 1 a 4 fazem um pulo por comando');
-
-  const fast = play(5);
-  parkRoads(fast);
-  assert.equal(C.speedy(5), true);
-  assert.equal(C.twoPlayers(5), false);
-  fast.step(0, { up: true });
-  assert.equal(fast.slot.row, 1);
-  fast.step(C.SPEEDY_REPEAT, { up: true });
-  assert.equal(fast.slot.row, 2);
-  note('Speedy Frogger repete o pulo enquanto a direção fica segurada');
-});
-
-test('dois jogadores alternam na morte, com placar separado, e o fogo repete a variação', () => {
-  const game = play(2);
-  assert.equal(game.player, 0);
-  assert.equal(game.slot.lives, 5);
-  assert.equal(game.slots[1].lives, 5);
-  assert.equal(C.twoPlayers(2), true);
-  parkRoads(game);
-  game.step(0, { up: true });
-  assert.equal(game.slot.score, 1);
-  squash(game);
-  assert.equal(game.slot.lives, 4);
-  finishDeath(game);
-  assert.equal(game.phase, 'playing');
+test('dois jogadores: a vez passa na morte, não na chegada, e o fim vem quando os dois acabam', () => {
+  const game = playing(2);
+  placeFrog(game, 10, 11);
+  game.enterBay();
+  until(game, (g) => g.state === 'play', 20);
+  assert.equal(game.player, 0, 'chegar em casa não passa a vez');
+  game.die('trânsito');
+  until(game, (g) => g.state === 'play', 100);
   assert.equal(game.player, 1);
-  assert.equal(game.slots[0].score, 1);
-  assert.equal(game.slots[0].lives, 4);
-  assert.equal(game.slot.score, 0);
-  assert.equal(game.slot.lives, 5);
-  parkRoads(game);
-  game.step(0, { up: true });
-  assert.equal(game.slot.score, 1);
-  assert.equal(game.slots[0].score, 1);
-  note('a morte alterna os jogadores e os placares ficam separados');
-
-  const ending = play(4);
-  assert.equal(ending.variation, 4);
-  assert.equal(ending.slot.level, 2);
-  assert.equal(C.startLevel(1), 1);
-  assert.ok(metrics(ending.slot.world).floats < metrics(play(1).slot.world).floats);
-  assert.ok(ending.slot.world.lanes[6].objects.some((obj) => obj.kind === 'snake'));
-  ending.slot.lives = 1;
-  ending.slots[1].lives = 1;
-  squash(ending);
-  finishDeath(ending);
-  assert.equal(ending.phase, 'playing');
-  assert.equal(ending.player, 1);
-  squash(ending);
-  finishDeath(ending);
-  assert.equal(ending.phase, 'gameover');
-  note('o jogo de dois jogadores só acaba quando os dois ficam sem sapos');
-
-  ending.action('fire');
-  assert.equal(ending.phase, 'playing');
-  assert.equal(ending.variation, 4);
-  assert.equal(ending.player, 0);
-  assert.equal(ending.slot.lives, 5);
-  assert.equal(ending.slots[1].lives, 5);
-  note('o botão de fogo recomeça a mesma variação');
-
-  const solo = play(1);
-  assert.equal(solo.slot.lives, 5);
-  for (let life = 0; life < 5; life++) {
-    squash(solo);
-    assert.equal(solo.slot.lives, 4 - life);
-    finishDeath(solo);
-  }
-  assert.equal(solo.phase, 'gameover');
-  assert.equal(solo.slot.lives, 0);
-  solo.action('reset');
-  assert.equal(solo.phase, 'playing');
-  assert.equal(solo.variation, 1);
-  assert.equal(solo.slot.lives, 5);
-  note('um jogador começa com 5 sapos, acaba em zero e o reset repete a variação');
+  assert.equal(game.players[1].reserves, 4);
+  assert.equal(game.players[0].bays, 1);
+  assert.equal(game.players[1].bays, 0);
+  game.players[0].reserves = -1;
+  game.die('água');
+  until(game, (g) => g.state === 'play', 100);
+  assert.equal(game.player, 1, 'sem sapos do outro lado, o mesmo jogador continua');
+  game.players[1].reserves = 0;
+  game.die('água');
+  until(game, (g) => g.state === 'over', 100);
+  assert.equal(game.state, 'over');
+  assert.equal(game.sound.tune, C.TUNES.theme);
+  game.frame({ fire: true, fire2: true });
+  assert.equal(game.state, 'pause');
+  assert.equal(game.game, 2, 'o botão vermelho joga de novo o mesmo jogo');
+  assert.equal(game.players[0].score, 0);
 });
 
-test('as variações 3 e 4 começam mais difíceis e a 6 é Speedy de dois jogadores', () => {
-  const easy = metrics(play(1).slot.world);
-  const hard = play(3);
-  assert.equal(hard.variation, 3);
-  assert.equal(hard.slot.level, 2);
-  assert.equal(C.twoPlayers(3), false);
-  const hardMetrics = metrics(hard.slot.world);
-  assert.ok(hardMetrics.floats < easy.floats);
-  assert.ok(hardMetrics.max > easy.max);
-  assert.equal(hardMetrics.mixed, true);
-  const pair = play(6);
-  assert.equal(pair.variation, 6);
-  assert.equal(C.speedy(6), true);
-  assert.equal(C.twoPlayers(6), true);
-  assert.equal(pair.slots.length, 2);
-  note('jogos 3 e 4 começam mais difíceis; 5 e 6 são Speedy; pares são de dois jogadores');
+test('GAME SELECT percorre os jogos de 1 a 6 e mostra os rostos nas tocas', () => {
+  const game = new Game();
+  const seen = [];
+  for (let i = 0; i < 6; i++) {
+    game.press('select');
+    run(game, 4);
+    seen.push([game.game, game.players[0].bays]);
+  }
+  assert.deepEqual(seen, [[2, 0x0A], [3, 0x04], [4, 0x0A], [5, 0x04], [6, 0x0A], [1, 0x04]]);
+  assert.equal(game.state, 'select');
+  game.press('select');
+  game.press('reset');
+  run(game, 2);
+  assert.equal(game.state, 'pause', 'GAME RESET tem prioridade sobre GAME SELECT');
+  const three = new Game();
+  three.game = 2;
+  three.press('select');
+  run(three, 4);
+  three.press('reset');
+  until(three, (g) => g.state === 'play', 600);
+  assert.equal(three.current.level, 3, 'os jogos 3 e 4 começam na fase 3');
+});
+
+test('parado na seleção por 7.680 quadros, o console entra na demonstração', () => {
+  const game = new Game();
+  const frames = until(game, (g) => g.state === 'over', 8000);
+  assert.equal(frames, 7680);
+  assert.equal(game.tableLevel, 4, 'a demonstração usa o trânsito da fase 4');
+});
+
+test('o som do pulo e as músicas seguem o driver do cartucho', () => {
+  const game = playing(1);
+  if (((game.counter + 1) & 1) === 0) game.frame({});
+  // The hop happens after the picture and the sound driver starts it on the next frame.
+  game.frame({ stick: UP });
+  const regs = [];
+  for (let i = 0; i < 10; i++) {
+    game.frame({});
+    regs.push(game.registers[0].join());
+  }
+  assert.deepEqual(regs.slice(0, 9), ['4,13,9', '4,13,9', '4,13,9', '4,7,8', '4,7,8', '4,7,8', '4,16,6', '4,16,6', '4,16,6']);
+  assert.equal(regs[9].split(',')[2], '0');
+  assert.equal(C.TUNES.start.length, 29);
+  assert.equal(C.TUNES.theme.length, 29);
+  // An effect asked for during a tune is dropped when the tune ends.
+  const tune = new Game();
+  tune.press('reset');
+  run(tune, 10);
+  tune.playEffect('hop');
+  until(tune, (g) => !g.tunePlaying, 600);
+  run(tune, 2);
+  assert.equal(tune.registers[0][2], 0);
+});
+
+test('o quadro desenhado tem as cores e faixas do cartucho', () => {
+  const game = playing(1);
+  const pixels = FG.Screen.create();
+  game.counter = 2;
+  FG.Screen.draw(game, pixels);
+  const color = (x, y) => '#' + (pixels[y * 160 + x] & 0xFFFFFF).toString(16).padStart(6, '0').match(/../g).reverse().join('').toUpperCase();
+  assert.equal(color(80, 95), '#E8E84A', 'margem');
+  assert.equal(color(120, 175), '#E8E84A', 'calçada');
+  assert.equal(color(12, 20), '#001C88', 'água da toca');
+  assert.equal(color(30, 20), '#527E2D', 'arbusto');
+  assert.equal(color(3, 30), '#000000', 'traço do HMOVE');
+  assert.equal(color(3, 31), '#527E2D', 'borda');
+  assert.equal(color(140, 184), '#000000', 'faixa de tempo');
+  assert.equal(color(18, 184), '#ECECEC', 'reserva');
+  assert.equal(color(79, 171), '#6E9C42', 'sapo na calçada');
+  game.toggleColor();
+  FG.Screen.draw(game, pixels);
+  assert.equal(color(80, 95), '#AAAAAA', 'margem em preto e branco');
+});
+
+test('o HTML portátil reúne todos os scripts e o estilo', () => {
+  const output = buildArtifact();
+  assert.equal(output.filename, OUTPUT);
+  const html = fs.readFileSync(OUTPUT, 'utf8');
+  assert.ok(!/<script\b[^>]*\bsrc=/i.test(html));
+  assert.ok(!/<link\b[^>]*stylesheet/i.test(html));
+  for (const name of ['FG.Config', 'FG.World', 'FG.Sprites', 'FG.Audio', 'FG.Input', 'FG.Game', 'FG.Screen', 'FG.boot']) {
+    assert.ok(html.includes(name), name);
+  }
 });

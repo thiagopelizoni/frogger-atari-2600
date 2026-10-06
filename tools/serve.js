@@ -12,6 +12,7 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
 };
 
 function createServer() {
@@ -65,4 +66,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, ROOT };
+module.exports = { createServer };
